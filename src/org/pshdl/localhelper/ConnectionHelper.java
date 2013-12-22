@@ -27,8 +27,10 @@ public class ConnectionHelper {
 	private final IWorkspaceListener listener;
 	private final WorkspaceHelper wh;
 	protected Client client;
+	protected String clientID;
 	private static final ObjectReader repoReader = JSONHelper.getReader(RepoInfo.class);
 	private static final ObjectReader messageReader = JSONHelper.getReader(Message.class);
+	private static final ObjectWriter writer = JSONHelper.getWriter();
 
 	public static enum Status {
 		CONNECTING, CONNECTED, CLOSED, RECONNECT, ERROR
@@ -71,6 +73,17 @@ public class ConnectionHelper {
 		}
 	}
 
+	public <T> void postMessage(String subject, String type, T content) throws IOException {
+		final Message<T> message = new Message<T>(type, subject, content, clientID);
+		final byte[] bytes = writer.writeValueAsBytes(message);
+		final Client client = createClient(false);
+		final Response response = client.target(getURL(wh.getWorkspaceID(), true)).path(clientID).request().post(Entity.entity(bytes, MediaType.APPLICATION_JSON));
+		final int status = response.getStatus();
+		if (status != 204) {
+			listener.doLog(Severity.ERROR, "Failed post message:" + new String(bytes) + " status was:" + status);
+		}
+	}
+
 	public boolean isConnected() {
 		if ((client == null) || (eventSource == null))
 			return false;
@@ -98,7 +111,7 @@ public class ConnectionHelper {
 				try {
 					listener.connectionStatus(Status.CONNECTING);
 					client = createClient(true);
-					final String clientID = getClientID(wid, client);
+					clientID = getClientID(wid, client);
 					estimateServerDelta();
 					final RepoInfo repo = getRepoInfo(wid, client);
 					for (final FileInfo fi : repo.getFiles()) {
@@ -126,7 +139,7 @@ public class ConnectionHelper {
 			cdata.add(measurement);
 		}
 		final long diff = cdata.first().diff;
-		if (Math.abs(diff) > 100) {
+		if (Math.abs(diff) > 1000) {
 			this.serverDiff = diff;
 			listener.doLog(Severity.INFO, "Server time difference is " + format(serverDiff));
 		} else {
@@ -152,10 +165,10 @@ public class ConnectionHelper {
 			f.format("%dh ", h);
 		}
 		if ((m > 0) || (h > 0)) {
-			f.format("%02ds ", m);
+			f.format("%02dm ", m);
 		}
 		if ((m > 0) || (h > 0) || (s > 0)) {
-			f.format("%02dm ", s);
+			f.format("%02ds ", s);
 		}
 		f.format("%03dms", ms);
 		final String string = f.toString();
@@ -262,7 +275,9 @@ public class ConnectionHelper {
 	}
 
 	public RepoInfo getRepoInfo(final String wid, final Client client) throws IOException, JsonProcessingException {
-		final String repoInfo = client.target(getURL(wid, false)).request().accept(MediaType.APPLICATION_JSON).get(String.class);
+		final String url = getURL(wid, false);
+		System.out.println("ConnectionHelper.getRepoInfo() Requesting:" + url);
+		final String repoInfo = client.target(url).request().accept(MediaType.APPLICATION_JSON).get(String.class);
 		return repoReader.<RepoInfo> readValue(repoInfo);
 	}
 
@@ -270,6 +285,8 @@ public class ConnectionHelper {
 		final WebTarget resource = client.target(getURL(wid, true));
 		return resource.path("clientID").request().get(String.class);
 	}
+
+	private static final Random r = new Random();
 
 	public void uploadFile(File file, String workspaceID, String name) throws IOException {
 		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
@@ -296,5 +313,30 @@ public class ConnectionHelper {
 		if (status != 200) {
 			listener.doLog(Severity.ERROR, "Failed to delete file:" + relPath + " status was:" + status);
 		}
+	}
+
+	public void uploadDerivedFile(File file, String workspaceID, String name, CompileInfo ci, String compileInfoSrc) throws IOException {
+		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
+		final FormDataContentDisposition dispo = FormDataContentDisposition//
+				.name("file")//
+				.fileName(name)//
+				.size(file.length())//
+				.modificationDate(new Date(file.lastModified())).build();
+		formDataMultiPart.bodyPart(new FormDataBodyPart(dispo, Files.toString(file, Charsets.UTF_8)));
+		formDataMultiPart.field("applicationID", "PSHDLLocalClient");
+		// Don't look at it! This is embarassing.. I promise I will implement it
+		// properly after the demo...
+		formDataMultiPart.field("challenge", Long.toHexString(r.nextLong()));
+		formDataMultiPart.field("signedChallenge", Long.toHexString(r.nextLong()));
+		formDataMultiPart.field("compileInfo", writer.writeValueAsString(ci));
+		formDataMultiPart.field("compileInfoSrc", compileInfoSrc);
+		final Client client = createClient(false);
+		final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
+				.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
+		final int status = response.getStatus();
+		if (status != 201) {
+			listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status);
+		}
+
 	}
 }

@@ -3,9 +3,9 @@ package org.pshdl.localhelper;
 import java.io.*;
 import java.net.*;
 import java.util.*;
-import java.util.prefs.*;
 
 import org.pshdl.localhelper.ConnectionHelper.Status;
+import org.pshdl.localhelper.actel.*;
 import org.pshdl.rest.models.*;
 
 import com.fasterxml.jackson.core.*;
@@ -15,6 +15,15 @@ import com.google.common.collect.*;
 import com.google.common.io.*;
 
 public class WorkspaceHelper {
+
+	public class ServiceAdvertiser implements MessageHandler<Void> {
+
+		@Override
+		public void handle(Message<Void> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+			postMessage(Message.SYNTHESIS_AVAILABLE, null, null);
+		}
+
+	}
 
 	private final class FileMonitor implements Runnable {
 		public boolean stop = false;
@@ -118,13 +127,13 @@ public class WorkspaceHelper {
 	}
 
 	public static interface MessageHandler<T> {
-		public void handle(Message<T> msg, IWorkspaceListener listener) throws Exception;
+		public void handle(Message<T> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception;
 	}
 
 	public class FileInfoArrayHandler implements MessageHandler<FileInfo[]> {
 
 		@Override
-		public void handle(Message<FileInfo[]> msg, IWorkspaceListener listener) throws Exception {
+		public void handle(Message<FileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 			final FileInfo[] readValues = getContent(msg, FileInfo[].class);
 			for (final FileInfo fi : readValues) {
 				handleFileInfo(fi);
@@ -136,7 +145,7 @@ public class WorkspaceHelper {
 	public class FileInfoDeleteHandler implements MessageHandler<FileInfo> {
 
 		@Override
-		public void handle(Message<FileInfo> msg, IWorkspaceListener listener) throws Exception {
+		public void handle(Message<FileInfo> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 			final FileInfo fi = getContent(msg, FileInfo.class);
 			final FileRecord record = fi.getRecord();
 			final String relPath = record.getRelPath();
@@ -164,7 +173,7 @@ public class WorkspaceHelper {
 	public class CompileContainerHandler implements MessageHandler<CompileInfo[]> {
 
 		@Override
-		public void handle(Message<CompileInfo[]> msg, IWorkspaceListener listener) throws Exception {
+		public void handle(Message<CompileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 			final CompileInfo[] cc = getContent(msg, CompileInfo[].class);
 			for (final CompileInfo ci : cc) {
 				handleCompileInfo(ci);
@@ -173,11 +182,9 @@ public class WorkspaceHelper {
 
 	}
 
-	private static final String PREF_LAST_WD = "WORKSPACE_DIR";
 	private static final String WID_FILE = ".wid";
 	private File root;
 	private String workspaceID;
-	private final Preferences prefs;
 	private static final ObjectWriter writer = JSONHelper.getWriter();
 	private final IWorkspaceListener listener;
 	private final ConnectionHelper ch;
@@ -187,11 +194,12 @@ public class WorkspaceHelper {
 	private FileMonitor fileMonitor;
 	protected Map<String, FileInfo> knownFiles = Maps.newHashMap();
 
-	public WorkspaceHelper(IWorkspaceListener listener) {
-		this.prefs = Preferences.userNodeForPackage(this.getClass());
-		final String string = prefs.get(PREF_LAST_WD, null);
-		if (string != null) {
-			setWorkspace(string);
+	public WorkspaceHelper(IWorkspaceListener listener, String workspaceID, String folder) {
+		if (workspaceID != null) {
+			setWorkspaceID(workspaceID);
+		}
+		if (folder != null) {
+			setWorkspace(folder);
 		}
 		this.listener = listener;
 		this.ch = new ConnectionHelper(listener, this);
@@ -204,6 +212,10 @@ public class WorkspaceHelper {
 		handlerMap.put(Message.DELETED, new FileInfoDeleteHandler());
 		handlerMap.put(Message.VHDL, new CompileContainerHandler());
 		handlerMap.put(Message.PSEX, new CompileContainerHandler());
+		handlerMap.put(Message.CLIENT_CONNECTED, new ServiceAdvertiser());
+		if (ActelSynthesis.isSynthesisAvailable()) {
+			handlerMap.put(Message.SYNTHESIS_RUN, new SynthesisInvoker(ch));
+		}
 	}
 
 	public void readWorkspaceID() {
@@ -219,7 +231,6 @@ public class WorkspaceHelper {
 
 	public void setWorkspace(String folder) {
 		this.root = new File(folder);
-		prefs.put(PREF_LAST_WD, folder);
 		readWorkspaceID();
 	}
 
@@ -250,7 +261,7 @@ public class WorkspaceHelper {
 	}
 
 	protected <T> void handleMessage(Message<T> message) {
-		final String subject = message.getSubject();
+		final String subject = message.subject;
 		final Iterable<String> split = Splitter.on(':').split(subject);
 		final StringBuilder sb = new StringBuilder();
 		for (final String string : split) {
@@ -261,7 +272,7 @@ public class WorkspaceHelper {
 				@SuppressWarnings("unchecked")
 				final MessageHandler<T> handler = (MessageHandler<T>) messageHandler;
 				try {
-					handler.handle(message, listener);
+					handler.handle(message, listener, root, workspaceID);
 				} catch (final Exception e) {
 					listener.doLog(e);
 				}
@@ -329,7 +340,7 @@ public class WorkspaceHelper {
 	}
 
 	public static <T> T getContent(Message<?> message, Class<T> clazz) throws JsonProcessingException, IOException, JsonParseException, JsonMappingException {
-		final Object json = message.getContents();
+		final Object json = message.contents;
 		final String jsonString = writer.writeValueAsString(json);
 		return mapper.readValue(jsonString, clazz);
 	}
@@ -356,6 +367,10 @@ public class WorkspaceHelper {
 
 	private long getModification(FileRecord record) {
 		return record.getLastModified() + ch.serverDiff;
+	}
+
+	public <T> void postMessage(String subject, String type, T content) throws IOException {
+		ch.postMessage(subject, type, content);
 	}
 
 }
