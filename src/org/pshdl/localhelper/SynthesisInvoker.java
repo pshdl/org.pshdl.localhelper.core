@@ -8,7 +8,7 @@ import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.MessageHandler;
 import org.pshdl.localhelper.actel.*;
 import org.pshdl.rest.models.*;
-import org.pshdl.rest.models.SynthesisProgress.ProgressType;
+import org.pshdl.rest.models.ProgressFeedback.ProgressType;
 import org.pshdl.rest.models.settings.*;
 import org.pshdl.rest.models.utils.*;
 
@@ -55,7 +55,7 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 				final File synDir = new File(workspaceDir, "src-gen/synthesis");
 				ActelSynthesis.createSynthesisFiles(contents.topModule, files, contents.board, synDir);
 				sendMessage(ProgressType.progress, 0.1, "Invoking Synthesis");
-				final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLICITY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
+				final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
 				final Process synProcess = runProcess(synDir, synProcessBuilder, 5, "synthesis", 0.2);
 				final CompileInfo info = new CompileInfo();
 				info.setCreated(System.currentTimeMillis());
@@ -80,6 +80,7 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 						final FileRecord record = addFileRecord(info, datFile, datRelPath, false);
 						sendMessage(ProgressType.progress, 1.0, "Bitstream creation succeeded!");
 						sendMessage(ProgressType.done, null, writer.writeValueAsString(record));
+						connectionHelper.postMessage(Message.COMP_SYNTHESIS, "CompileInfo[]", new CompileInfo[] { info });
 					}
 				}
 			} catch (final Throwable e) {
@@ -140,8 +141,8 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 		}
 
 		public void sendMessage(ProgressType type, Double progress, String message) throws IOException {
-			final SynthesisProgress synProgress = new SynthesisProgress(type, progress, System.currentTimeMillis(), message);
-			connectionHelper.postMessage(Message.SYNTHESIS_PROGRESS, "SynthesisProgress", synProgress);
+			final ProgressFeedback synProgress = new ProgressFeedback(type, progress, System.currentTimeMillis(), message);
+			connectionHelper.postMessage(Message.SYNTHESIS_PROGRESS, "ProgressFeedback", synProgress);
 			System.out.println("SynthesisInvoker.SynJob.sendMessage()" + type + " " + message);
 		}
 

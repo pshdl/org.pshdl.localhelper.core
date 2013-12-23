@@ -5,6 +5,7 @@ import java.net.*;
 import java.util.*;
 
 import org.pshdl.localhelper.ConnectionHelper.Status;
+import org.pshdl.localhelper.PSSyncCommandLine.Configuration;
 import org.pshdl.localhelper.actel.*;
 import org.pshdl.rest.models.*;
 
@@ -18,9 +19,27 @@ public class WorkspaceHelper {
 
 	public class ServiceAdvertiser implements MessageHandler<Void> {
 
+		private final boolean synthesisAvailable;
+		private final boolean hasBoard;
+
+		public ServiceAdvertiser(boolean synthesisAvailable, boolean hasBoard) {
+			this.synthesisAvailable = synthesisAvailable;
+			this.hasBoard = hasBoard;
+		}
+
 		@Override
 		public void handle(Message<Void> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
-			postMessage(Message.SYNTHESIS_AVAILABLE, null, null);
+			doPost();
+
+		}
+
+		public void doPost() throws IOException {
+			if (synthesisAvailable) {
+				postMessage(Message.SYNTHESIS_AVAILABLE, null, null);
+			}
+			if (hasBoard) {
+				postMessage(Message.BOARD_AVAILABLE, null, null);
+			}
 		}
 
 	}
@@ -193,8 +212,13 @@ public class WorkspaceHelper {
 	private static final ObjectMapper mapper = JSONHelper.getMapper();
 	private FileMonitor fileMonitor;
 	protected Map<String, FileInfo> knownFiles = Maps.newHashMap();
+	private final Configuration config;
+	private ServiceAdvertiser psa;
 
-	public WorkspaceHelper(IWorkspaceListener listener, String workspaceID, String folder) {
+	public WorkspaceHelper(IWorkspaceListener listener, String workspaceID, String folder, Configuration config) {
+		ActelSynthesis.ACTEL_TCLSH = config.acttclsh;
+		ActelSynthesis.SYNPLIFY = config.synplify;
+		this.config = config;
 		if (workspaceID != null) {
 			setWorkspaceID(workspaceID);
 		}
@@ -207,14 +231,19 @@ public class WorkspaceHelper {
 	}
 
 	public void registerFileSyncHandlers() {
-		handlerMap.put(Message.ADDED, new FileInfoArrayHandler());
-		handlerMap.put(Message.UPDATED, new FileInfoArrayHandler());
-		handlerMap.put(Message.DELETED, new FileInfoDeleteHandler());
-		handlerMap.put(Message.VHDL, new CompileContainerHandler());
-		handlerMap.put(Message.PSEX, new CompileContainerHandler());
-		handlerMap.put(Message.CLIENT_CONNECTED, new ServiceAdvertiser());
-		if (ActelSynthesis.isSynthesisAvailable()) {
+		handlerMap.put(Message.WORK_ADDED, new FileInfoArrayHandler());
+		handlerMap.put(Message.WORK_UPDATED, new FileInfoArrayHandler());
+		handlerMap.put(Message.WORK_DELETED, new FileInfoDeleteHandler());
+		handlerMap.put(Message.COMPILER, new CompileContainerHandler());
+		final boolean synthesisAvailable = ActelSynthesis.isSynthesisAvailable();
+		final boolean hasBoard = config.comPort != null;
+		psa = new ServiceAdvertiser(synthesisAvailable, hasBoard);
+		handlerMap.put(Message.CLIENT_CONNECTED, psa);
+		if (synthesisAvailable) {
 			handlerMap.put(Message.SYNTHESIS_RUN, new SynthesisInvoker(ch));
+		}
+		if (hasBoard) {
+			handlerMap.put(Message.BOARD_CONFIGURE, new ConfigureInvoker(ch, config));
 		}
 	}
 
@@ -371,6 +400,10 @@ public class WorkspaceHelper {
 
 	public <T> void postMessage(String subject, String type, T content) throws IOException {
 		ch.postMessage(subject, type, content);
+	}
+
+	public void announceServices() throws IOException {
+		psa.doPost();
 	}
 
 }

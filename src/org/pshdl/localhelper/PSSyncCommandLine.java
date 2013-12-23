@@ -13,28 +13,33 @@ import org.pshdl.rest.models.*;
 public class PSSyncCommandLine implements IWorkspaceListener {
 	private static Options options = generateOptions();
 
+	public static class Configuration {
+		public String workspaceID;
+		public File workspaceDir;
+		public File synplify;
+		public File acttclsh;
+		public File progammer;
+		public String comPort;
+	}
+
 	public static void main(String[] args) throws ParseException, InterruptedException, IOException {
-		final PosixParser pp = new PosixParser();
-		final org.apache.commons.cli.CommandLine cli = pp.parse(options, args);
-		if (cli.hasOption('h')) {
-			printUsage();
-			return;
-		}
-		if (!cli.hasOption('w')) {
+		final Configuration config = configure(args);
+		if (config.workspaceID == null) {
 			System.out.println("The workspace ID is a required option");
 			printUsage();
 			return;
 		}
-		final String workspaceID = cli.getOptionValue('w');
-		final File workingDir = new File(cli.getOptionValue('d', "."));
-		if (!workingDir.exists()) {
-			workingDir.mkdirs();
+		if (config.workspaceDir == null) {
+			config.workspaceDir = new File(".");
+		}
+		if (!config.workspaceDir.exists()) {
+			config.workspaceDir.mkdirs();
 		}
 
 		final PSSyncCommandLine listener = new PSSyncCommandLine();
-		final WorkspaceHelper wh = new WorkspaceHelper(listener, workspaceID, workingDir.getAbsolutePath());
+		final WorkspaceHelper wh = new WorkspaceHelper(listener, config.workspaceID, config.workspaceDir.getAbsolutePath(), config);
 		listener.setWorkspaceHelper(wh);
-		wh.connectTo(workspaceID);
+		wh.connectTo(config.workspaceID);
 		while (true) {
 			Thread.sleep(1000000);
 		}
@@ -55,6 +60,10 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		final Options options = new Options();
 		options.addOption(new Option("w", "workspaceID", true, "The workspace ID to which the client should attach"));
 		options.addOption(new Option("d", "dir", true, "Directory to use for the synced files. The default is the current directory"));
+		options.addOption(new Option("syn", "synplify", true, "Absolute path to the synplify executable"));
+		options.addOption(new Option("atcl", "acttclsh", true, "Absolute path to the Actel TCL shell (acttclsh executable)"));
+		options.addOption(new Option("com", "comport", true, "The name or path to the serial port"));
+		options.addOption(new Option("prg", "programmer", true, "The absolute path to the fpga_programmer executable"));
 		options.addOption(new Option("h", "help", false, "Prints this help"));
 		return options;
 	}
@@ -63,12 +72,10 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 	public void connectionStatus(Status status) {
 		System.out.println("CommandLine.connectionStatus()" + status);
 		if (status == Status.CONNECTED) {
-			if (ActelSynthesis.isSynthesisAvailable()) {
-				try {
-					workspaceHelper.postMessage(Message.SYNTHESIS_AVAILABLE, null, null);
-				} catch (final IOException e) {
-					e.printStackTrace();
-				}
+			try {
+				workspaceHelper.announceServices();
+			} catch (final IOException e) {
+				e.printStackTrace();
 			}
 		}
 	}
@@ -91,5 +98,25 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 	@Override
 	public void doLog(Exception e) {
 		e.printStackTrace();
+	}
+
+	public static Configuration configure(String[] args) throws ParseException {
+		final PosixParser pp = new PosixParser();
+		final CommandLine cli = pp.parse(options, args);
+		if (cli.hasOption('h')) {
+			printUsage();
+			System.exit(1);
+			return null;
+		}
+		final Configuration config = new Configuration();
+		config.workspaceID = cli.getOptionValue('w', null);
+		if (cli.hasOption('d')) {
+			config.workspaceDir = new File(cli.getOptionValue('d', null));
+		}
+		config.synplify = new File(cli.getOptionValue("syn", ActelSynthesis.SYNPLIFY.getAbsolutePath()));
+		config.acttclsh = new File(cli.getOptionValue("atcl", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath()));
+		config.progammer = new File(cli.getOptionValue("prg", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath()));
+		config.comPort = cli.getOptionValue("com", null);
+		return config;
 	}
 }

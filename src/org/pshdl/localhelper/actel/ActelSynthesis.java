@@ -14,14 +14,14 @@ import com.google.common.io.*;
 public class ActelSynthesis {
 	private static String SYN_VERSION = System.getProperty("SYN_VERSION", "H201303MSP1-1");
 	private static String LIBERO_PATH = System.getProperty("LIBERO_DIR", "c:\\Microsemi\\Libero_v11.2");
-	public static File SYNPLICITY = new File(LIBERO_PATH, "Synopsys\\synplify_" + SYN_VERSION + "\\win64\\mbin\\synplify.exe");
+	public static File SYNPLIFY = new File(LIBERO_PATH, "Synopsys\\synplify_" + SYN_VERSION + "\\win64\\mbin\\synplify.exe");
 	public static File ACTEL_TCLSH = new File(LIBERO_PATH, "Designer\\bin64\\acttclsh.exe");
 
 	public static boolean isSynthesisAvailable() {
 		System.out.println("Assuming SYN_VERSION to be: " + SYN_VERSION);
 		System.out.println("Assuming LIBERO_PATH to be: " + LIBERO_PATH);
-		if (!SYNPLICITY.exists()) {
-			System.err.println("WARNING: Did not find synplicity at:" + SYNPLICITY);
+		if (!SYNPLIFY.exists()) {
+			System.err.println("WARNING: Did not find synplicity at:" + SYNPLIFY);
 			return false;
 		}
 		if (!ACTEL_TCLSH.exists()) {

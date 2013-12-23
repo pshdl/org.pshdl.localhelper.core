@@ -18,8 +18,8 @@ import org.pshdl.rest.models.*;
 
 import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.*;
-import com.google.common.base.*;
 import com.google.common.collect.*;
+import com.google.common.hash.Hashing;
 import com.google.common.io.*;
 
 public class ConnectionHelper {
@@ -289,13 +289,7 @@ public class ConnectionHelper {
 	private static final Random r = new Random();
 
 	public void uploadFile(File file, String workspaceID, String name) throws IOException {
-		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
-		final FormDataContentDisposition dispo = FormDataContentDisposition//
-				.name("file")//
-				.fileName(name)//
-				.size(file.length())//
-				.modificationDate(new Date(file.lastModified())).build();
-		formDataMultiPart.bodyPart(new FormDataBodyPart(dispo, Files.toString(file, Charsets.UTF_8)));
+		final FormDataMultiPart formDataMultiPart = createFormBody(file, name);
 		final Client client = createClient(false);
 		final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
 				.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
@@ -316,13 +310,7 @@ public class ConnectionHelper {
 	}
 
 	public void uploadDerivedFile(File file, String workspaceID, String name, CompileInfo ci, String compileInfoSrc) throws IOException {
-		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
-		final FormDataContentDisposition dispo = FormDataContentDisposition//
-				.name("file")//
-				.fileName(name)//
-				.size(file.length())//
-				.modificationDate(new Date(file.lastModified())).build();
-		formDataMultiPart.bodyPart(new FormDataBodyPart(dispo, Files.toString(file, Charsets.UTF_8)));
+		final FormDataMultiPart formDataMultiPart = createFormBody(file, name);
 		formDataMultiPart.field("applicationID", "PSHDLLocalClient");
 		// Don't look at it! This is embarassing.. I promise I will implement it
 		// properly after the demo...
@@ -338,5 +326,18 @@ public class ConnectionHelper {
 			listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status);
 		}
 
+	}
+
+	public FormDataMultiPart createFormBody(File file, String name) throws IOException {
+		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
+		final FormDataContentDisposition dispo = FormDataContentDisposition//
+				.name("file")//
+				.fileName(name)//
+				.size(file.length())//
+				.modificationDate(new Date(file.lastModified())).build();
+		final byte[] byteArray = Files.toByteArray(file);
+		formDataMultiPart.bodyPart(new FormDataBodyPart(dispo, byteArray, MediaType.APPLICATION_OCTET_STREAM_TYPE));
+		formDataMultiPart.field("MD5", Hashing.md5().hashBytes(byteArray).toString());
+		return formDataMultiPart;
 	}
 }
