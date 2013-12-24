@@ -13,7 +13,14 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 
 	private final ConnectionHelper ch;
 	private final Configuration config;
-	public static File FPGA_PROGRAMMER = new File(System.getProperty("FPGA_PROGRAMMER", "fpga_progammer"));
+	private static String OS = System.getProperty("os.name").toLowerCase();
+	public static File FPGA_PROGRAMMER = new File(System.getProperty("FPGA_PROGRAMMER", getExecutableName()));
+
+	public static String getExecutableName() {
+		if (OS.indexOf("win") >= 0)
+			return "fpga_progammer.exe";
+		return "fpga_progammer";
+	}
 
 	public ConfigureInvoker(ConnectionHelper ch, Configuration config) {
 		this.ch = ch;
