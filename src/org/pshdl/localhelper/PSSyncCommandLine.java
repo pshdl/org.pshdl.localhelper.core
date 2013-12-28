@@ -60,12 +60,22 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		final Options options = new Options();
 		options.addOption(new Option("w", "workspaceID", true, "The workspace ID to which the client should attach"));
 		options.addOption(new Option("d", "dir", true, "Directory to use for the synced files. The default is the current directory"));
-		options.addOption(new Option("syn", "synplify", true, "Absolute path to the synplify executable"));
-		options.addOption(new Option("atcl", "acttclsh", true, "Absolute path to the Actel TCL shell (acttclsh executable)"));
+		options.addOption(new Option("syn", "synplify", true, "Absolute path to the synplify executable." + printDefault(ActelSynthesis.SYNPLIFY)));
+		options.addOption(new Option("atcl", "acttclsh", true, "Absolute path to the Actel TCL shell (acttclsh executable)." + printDefault(ActelSynthesis.ACTEL_TCLSH)));
 		options.addOption(new Option("com", "comport", true, "The name or path to the serial port"));
-		options.addOption(new Option("prg", "programmer", true, "The absolute path to the fpga_programmer executable"));
+		options.addOption(new Option("prg", "programmer", true, "The absolute path to the fpga_programmer executable." + printDefault(ConfigureInvoker.FPGA_PROGRAMMER)));
 		options.addOption(new Option("h", "help", false, "Prints this help"));
 		return options;
+	}
+
+	private static String printDefault(File executable) {
+		return " Default is [" + executable + "]" + isFound(executable);
+	}
+
+	private static String isFound(File synplify) {
+		if (synplify.exists() && synplify.canExecute())
+			return " (found)";
+		return " (not found)";
 	}
 
 	@Override
@@ -101,6 +111,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 	}
 
 	public static Configuration configure(String[] args) throws ParseException {
+		final Configuration config = new Configuration();
 		final PosixParser pp = new PosixParser();
 		final CommandLine cli = pp.parse(options, args);
 		if (cli.hasOption('h')) {
@@ -108,7 +119,6 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 			System.exit(1);
 			return null;
 		}
-		final Configuration config = new Configuration();
 		config.workspaceID = cli.getOptionValue('w', null);
 		if (cli.hasOption('d')) {
 			config.workspaceDir = new File(cli.getOptionValue('d', null));

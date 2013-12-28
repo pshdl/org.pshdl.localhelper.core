@@ -371,7 +371,13 @@ public class WorkspaceHelper {
 	public static <T> T getContent(Message<?> message, Class<T> clazz) throws JsonProcessingException, IOException, JsonParseException, JsonMappingException {
 		final Object json = message.contents;
 		final String jsonString = writer.writeValueAsString(json);
-		return mapper.readValue(jsonString, clazz);
+		try {
+			return mapper.readValue(jsonString, clazz);
+		} catch (final Exception e) {
+			System.out.println("WorkspaceHelper.getContent()" + jsonString);
+			e.printStackTrace();
+			throw new RuntimeException(e);
+		}
 	}
 
 	public File getWorkspaceFolder() {
