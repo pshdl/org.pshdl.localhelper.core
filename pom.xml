@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>org.pshdl</groupId>
 	<artifactId>localhelper.core</artifactId>
-	<version>0.1.51</version>
+	<version>0.1.52</version>
 	<build>
 		<sourceDirectory>src</sourceDirectory>
 		<plugins>
@@ -52,7 +52,7 @@
 		<dependency>
 			<groupId>org.pshdl</groupId>
 			<artifactId>rest.models</artifactId>
-			<version>0.1.51</version>
+			<version>0.1.52</version>
 		</dependency>
 		<dependency>
 			<groupId>org.glassfish.jersey.core</groupId>
