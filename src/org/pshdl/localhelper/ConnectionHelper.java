@@ -74,7 +74,7 @@ public class ConnectionHelper {
 	}
 
 	public <T> void postMessage(String subject, String type, T content) throws IOException {
-		final Message<T> message = new Message<T>(type, subject, content, clientID);
+		final Message<T> message = new Message<>(type, subject, content, clientID);
 		final byte[] bytes = writer.writeValueAsBytes(message);
 		final Client client = createClient(false);
 		final Response response = client.target(getURL(wh.getWorkspaceID(), true)).path(clientID).request().post(Entity.entity(bytes, MediaType.APPLICATION_JSON));
