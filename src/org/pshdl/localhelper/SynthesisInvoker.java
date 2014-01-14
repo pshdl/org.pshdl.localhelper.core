@@ -64,13 +64,16 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 				final File stdOut = new File(synDir, "stdout.log");
 				addFileRecord(info, stdOut, synRelPath, true);
 				if (synProcess.exitValue() != 0) {
+					final File srrLog = new File(synDir, contents.topModule + ".srr");
+					final String implRelPath = "src-gen/synthesis/" + contents.topModule + ".srr";
+					addFileRecord(info, srrLog, implRelPath, true);
 					sendMessage(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
 				} else {
 					sendMessage(ProgressType.progress, 0.3, "Starting implementation");
 					final ProcessBuilder mapProcessBuilder = new ProcessBuilder(ActelSynthesis.ACTEL_TCLSH.getAbsolutePath(), "ActelSynthScript.tcl");
 					final Process mapProcess = runProcess(synDir, mapProcessBuilder, 10, "implementation", 0.4);
 					final File srrLog = new File(synDir, contents.topModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/implementation.log";
+					final String implRelPath = "src-gen/synthesis/" + contents.topModule + ".srr";
 					addFileRecord(info, srrLog, implRelPath, true);
 					if (mapProcess.exitValue() != 0) {
 						sendMessage(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + mapProcess.exitValue());
@@ -92,7 +95,6 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 
 		public FileRecord addFileRecord(final CompileInfo info, final File srrLog, final String relPath, boolean report) throws IOException {
 			final FileRecord fileRecord = new FileRecord();
-			fileRecord.setFile(srrLog);
 			fileRecord.setFileURI(RestConstants.toWorkspaceURI(workspaceID, relPath));
 			fileRecord.setRelPath(relPath);
 			fileRecord.setLastModified(srrLog.lastModified());

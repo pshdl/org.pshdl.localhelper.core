@@ -170,7 +170,6 @@ public class WorkspaceHelper {
 			final String relPath = record.getRelPath();
 			final File localFile = new File(root, relPath);
 			if (localFile.exists()) {
-				record.setFile(localFile);
 				if (localFile.lastModified() > getModification(record)) {
 					listener.doLog(Severity.WARNING, "A file that existed locally is newer than a remotely deleted file:" + relPath);
 				} else {
@@ -348,7 +347,6 @@ public class WorkspaceHelper {
 		final long lastModified = getModification(fr);
 		final String uri = fr.getFileURI();
 		if (localFile.exists()) {
-			fr.setFile(localFile);
 			final long localLastModified = localFile.lastModified();
 			if ((localLastModified < lastModified) || (lastModified == 0)) {
 				ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
