@@ -29,7 +29,6 @@ package org.pshdl.localhelper.actel;
 import java.io.*;
 import java.util.*;
 
-import org.pshdl.localhelper.boards.*;
 import org.pshdl.model.utils.internal.*;
 import org.pshdl.rest.models.settings.*;
 
@@ -57,21 +56,11 @@ public class ActelSynthesis {
 		return true;
 	}
 
-	public static void main(String[] args) throws Exception {
-		final String project = "TestProject";
-		final String topModule = "RGBBlinkGame";
-		final ArrayList<File> vhdlFiles = Lists.newArrayList(new File("RGBBlinkGame.vhdl"));
-		final BoardSpecSettings spec = PSHDLBoardConfig.generateBoardSpec();
-		PSHDLBoardConfig.generateExample(spec);
-		final File synDir = new File(project);
-		createSynthesisFiles(topModule, vhdlFiles, spec, synDir);
-	}
-
-	public static void createSynthesisFiles(final String topModule, final ArrayList<File> vhdlFiles, final BoardSpecSettings spec, final File synDir) throws IOException,
-			FileNotFoundException {
+	public static void createSynthesisFiles(final String topModule, final ArrayList<File> vhdlFiles, final BoardSpecSettings board, final File synDir, final File workspace,
+			SynthesisSettings settings) throws IOException, FileNotFoundException {
 		synDir.mkdir();
 		generateBatFile(synDir, SYN_VERSION, LIBERO_PATH);
-		generatePDCFile(synDir, topModule, spec, "clk", "reset_n");
+		generatePDCFile(synDir, topModule, settings, board, "clk", "reset_n");
 		generateActelSynFile(synDir, topModule, topModule + "_constr");
 		generateSynPrjFile(synDir, topModule, vhdlFiles);
 		final FileOutputStream fos = new FileOutputStream(new File(synDir, "pshdl_pkg.vhd"));
@@ -98,9 +87,9 @@ public class ActelSynthesis {
 		Files.write(Helper.processFile(ActelSynthesis.class, "ActelSynthScript.tcl", options), new File(synDir, "ActelSynthScript.tcl"));
 	}
 
-	private static void generatePDCFile(File synDir, String topName, BoardSpecSettings spec, String clockName, String rstName) throws IOException {
+	private static void generatePDCFile(File synDir, String topName, SynthesisSettings settings, BoardSpecSettings spec, String clockName, String rstName) throws IOException {
 		final File pdcFile = new File(synDir, topName + "_constr.pdc");
-		Files.write(spec.toString(clockName, rstName, new BoardSpecSettings.PDCWriter()), pdcFile, Charsets.UTF_8);
+		Files.write(settings.toString(clockName, rstName, spec, new SynthesisSettings.PDCWriter()), pdcFile, Charsets.UTF_8);
 	}
 
 	private static void generateBatFile(File synDir, String synversion, String liberopath) throws IOException {

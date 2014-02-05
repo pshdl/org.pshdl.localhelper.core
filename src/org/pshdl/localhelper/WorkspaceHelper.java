@@ -128,11 +128,11 @@ public class WorkspaceHelper {
 			} else {
 				final FileInfo info = knownFiles.get(relPath);
 				if (info != null) {
-					final FileRecord record = info.getRecord();
+					final FileRecord record = info.record;
 					if (getModification(record) < file.lastModified()) {
 						System.out.println("WorkspaceHelper.FileMonitor.findMonitorFiles() Uploading outdated file");
 						try {
-							ch.uploadFile(file, workspaceID, record.getRelPath());
+							ch.uploadFile(file, workspaceID, record.relPath);
 							listener.fileOperation(FileOp.UPLOADED, file);
 						} catch (final IOException e) {
 							listener.doLog(e);
@@ -192,8 +192,8 @@ public class WorkspaceHelper {
 		@Override
 		public void handle(Message<FileInfo> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 			final FileInfo fi = getContent(msg, FileInfo.class);
-			final FileRecord record = fi.getRecord();
-			final String relPath = record.getRelPath();
+			final FileRecord record = fi.record;
+			final String relPath = record.relPath;
 			final File localFile = new File(root, relPath);
 			if (localFile.exists()) {
 				if (localFile.lastModified() > getModification(record)) {
@@ -202,7 +202,7 @@ public class WorkspaceHelper {
 					localFile.delete();
 					listener.fileOperation(FileOp.REMOVED, localFile);
 				}
-				final CompileInfo info = fi.getInfo();
+				final CompileInfo info = fi.info;
 				if (info != null) {
 					deleteCompileInfoFiles(info);
 				}
@@ -219,6 +219,7 @@ public class WorkspaceHelper {
 		@Override
 		public void handle(Message<CompileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 			final CompileInfo[] cc = getContent(msg, CompileInfo[].class);
+			final Map<String, CompileInfo> map = Maps.newHashMap();
 			for (final CompileInfo ci : cc) {
 				handleCompileInfo(ci);
 			}
@@ -338,7 +339,7 @@ public class WorkspaceHelper {
 	private void deleteCompileInfoFiles(final CompileInfo info) {
 		final List<FileRecord> outputs = info.getFiles();
 		for (final FileRecord oi : outputs) {
-			final File oF = new File(root, oi.getRelPath());
+			final File oF = new File(root, oi.relPath);
 			deleteFileAndDir(root, oF);
 		}
 	}
@@ -353,9 +354,9 @@ public class WorkspaceHelper {
 	}
 
 	public void handleFileInfo(final FileInfo fi) {
-		handleFileUpdate(fi.getRecord());
-		knownFiles.put(fi.getRecord().getRelPath(), fi);
-		final CompileInfo compileInfo = fi.getInfo();
+		handleFileUpdate(fi.record);
+		knownFiles.put(fi.record.relPath, fi);
+		final CompileInfo compileInfo = fi.info;
 		if (compileInfo != null) {
 			handleCompileInfo(compileInfo);
 		}
@@ -369,9 +370,9 @@ public class WorkspaceHelper {
 	}
 
 	public void handleFileUpdate(FileRecord fr) {
-		final File localFile = new File(root, fr.getRelPath());
+		final File localFile = new File(root, fr.relPath);
 		final long lastModified = getModification(fr);
-		final String uri = fr.getFileURI();
+		final String uri = fr.fileURI;
 		if (localFile.exists()) {
 			final long localLastModified = localFile.lastModified();
 			if ((localLastModified < lastModified) || (lastModified == 0)) {
@@ -425,7 +426,7 @@ public class WorkspaceHelper {
 	}
 
 	private long getModification(FileRecord record) {
-		return record.getLastModified() + ch.serverDiff;
+		return record.lastModified + ch.serverDiff;
 	}
 
 	public <T> void postMessage(String subject, String type, T content) throws IOException {

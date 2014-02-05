@@ -363,7 +363,7 @@ public class ConnectionHelper {
 				.modificationDate(new Date(file.lastModified())).build();
 		final byte[] byteArray = Files.toByteArray(file);
 		formDataMultiPart.bodyPart(new FormDataBodyPart(dispo, byteArray, MediaType.APPLICATION_OCTET_STREAM_TYPE));
-		formDataMultiPart.field("MD5", Hashing.md5().hashBytes(byteArray).toString());
+		formDataMultiPart.field("sha1", Hashing.sha1().hashBytes(byteArray).toString());
 		return formDataMultiPart;
 	}
 }

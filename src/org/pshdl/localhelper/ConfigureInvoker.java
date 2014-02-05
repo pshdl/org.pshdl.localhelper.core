@@ -56,10 +56,10 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 	@Override
 	public void handle(Message<FileRecord> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 		final FileRecord record = WorkspaceHelper.getContent(msg, FileRecord.class);
-		final File datFile = new File(workspaceDir, record.getRelPath());
+		final File datFile = new File(workspaceDir, record.relPath);
 		final String datAbsolutePath = datFile.getAbsolutePath();
 		if (!datFile.exists()) {
-			listener.doLog(Severity.ERROR, "Unable to program file:" + record.getRelPath() + " because it can not be found locally:" + datAbsolutePath);
+			listener.doLog(Severity.ERROR, "Unable to program file:" + record.relPath + " because it can not be found locally:" + datAbsolutePath);
 			return;
 		}
 		final String absolutePath = config.progammer.getAbsolutePath();

@@ -36,7 +36,6 @@ import org.pshdl.localhelper.actel.*;
 import org.pshdl.rest.models.*;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
 import org.pshdl.rest.models.settings.*;
-import org.pshdl.rest.models.utils.*;
 
 import com.fasterxml.jackson.databind.*;
 import com.google.common.collect.*;
@@ -58,12 +57,12 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 			}
 		}
 
-		private final SynthesisSettings contents;
+		private final SynthesisSettings settings;
 		private final File workspaceDir;
 		private final String workspaceID;
 
 		public SynJob(SynthesisSettings contents, File workspaceDir, String workspaceID) {
-			this.contents = contents;
+			this.settings = contents;
 			this.workspaceDir = workspaceDir;
 			this.workspaceID = workspaceID;
 		}
@@ -79,7 +78,10 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 			}
 			try {
 				final File synDir = new File(workspaceDir, "src-gen/synthesis");
-				ActelSynthesis.createSynthesisFiles(contents.topModule, files, contents.board, synDir);
+				final File boardFile = new File(workspaceDir, settings.board);
+				final ObjectReader reader = JSONHelper.getReader(BoardSpecSettings.class);
+				final BoardSpecSettings board = reader.readValue(boardFile);
+				ActelSynthesis.createSynthesisFiles(settings.topModule, files, board, synDir, workspaceDir, settings);
 				sendMessage(ProgressType.progress, 0.1, "Invoking Synthesis");
 				final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
 				final Process synProcess = runProcess(synDir, synProcessBuilder, 5, "synthesis", 0.2);
@@ -90,21 +92,21 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 				final File stdOut = new File(synDir, "stdout.log");
 				addFileRecord(info, stdOut, synRelPath, true);
 				if (synProcess.exitValue() != 0) {
-					final File srrLog = new File(synDir, contents.topModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/" + contents.topModule + ".srr";
+					final File srrLog = new File(synDir, settings.topModule + ".srr");
+					final String implRelPath = "src-gen/synthesis/" + settings.topModule + ".srr";
 					addFileRecord(info, srrLog, implRelPath, true);
 					sendMessage(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
 				} else {
 					sendMessage(ProgressType.progress, 0.3, "Starting implementation");
 					final ProcessBuilder mapProcessBuilder = new ProcessBuilder(ActelSynthesis.ACTEL_TCLSH.getAbsolutePath(), "ActelSynthScript.tcl");
 					final Process mapProcess = runProcess(synDir, mapProcessBuilder, 10, "implementation", 0.4);
-					final File srrLog = new File(synDir, contents.topModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/" + contents.topModule + ".srr";
+					final File srrLog = new File(synDir, settings.topModule + ".srr");
+					final String implRelPath = "src-gen/synthesis/" + settings.topModule + ".srr";
 					addFileRecord(info, srrLog, implRelPath, true);
 					if (mapProcess.exitValue() != 0) {
 						sendMessage(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + mapProcess.exitValue());
 					} else {
-						final File datFile = new File(synDir, contents.topModule + ".dat");
+						final File datFile = new File(synDir, settings.topModule + ".dat");
 						final String datRelPath = "src-gen/synthesis/actelConfig.dat";
 						final FileRecord record = addFileRecord(info, datFile, datRelPath, false);
 						sendMessage(ProgressType.progress, 1.0, "Bitstream creation succeeded!");
@@ -120,10 +122,8 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 		private final ObjectWriter writer = JSONHelper.getWriter();
 
 		public FileRecord addFileRecord(final CompileInfo info, final File srrLog, final String relPath, boolean report) throws IOException {
-			final FileRecord fileRecord = new FileRecord();
-			fileRecord.setFileURI(RestConstants.toWorkspaceURI(workspaceID, relPath));
-			fileRecord.setRelPath(relPath);
-			fileRecord.setLastModified(srrLog.lastModified());
+			final FileRecord fileRecord = new FileRecord(srrLog, workspaceDir, workspaceID);
+			fileRecord.relPath = relPath;
 			info.getFiles().add(fileRecord);
 			connectionHelper.uploadDerivedFile(srrLog, workspaceID, relPath, info, "SynSettings.json");
 			if (report) {
