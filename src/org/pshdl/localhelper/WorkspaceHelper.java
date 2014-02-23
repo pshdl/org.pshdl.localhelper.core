@@ -39,6 +39,7 @@ import com.fasterxml.jackson.core.*;
 import com.fasterxml.jackson.databind.*;
 import com.google.common.base.*;
 import com.google.common.collect.*;
+import com.google.common.hash.Hashing;
 import com.google.common.io.*;
 
 public class WorkspaceHelper {
@@ -219,7 +220,6 @@ public class WorkspaceHelper {
 		@Override
 		public void handle(Message<CompileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
 			final CompileInfo[] cc = getContent(msg, CompileInfo[].class);
-			final Map<String, CompileInfo> map = Maps.newHashMap();
 			for (final CompileInfo ci : cc) {
 				handleCompileInfo(ci);
 			}
@@ -353,7 +353,7 @@ public class WorkspaceHelper {
 		}
 	}
 
-	public void handleFileInfo(final FileInfo fi) {
+	public void handleFileInfo(final FileInfo fi) throws IOException {
 		handleFileUpdate(fi.record);
 		knownFiles.put(fi.record.relPath, fi);
 		final CompileInfo compileInfo = fi.info;
@@ -362,21 +362,26 @@ public class WorkspaceHelper {
 		}
 	}
 
-	public void handleCompileInfo(final CompileInfo compileInfo) {
+	public void handleCompileInfo(final CompileInfo compileInfo) throws IOException {
 		final List<FileRecord> addOutputs = compileInfo.getFiles();
 		for (final FileRecord outputInfo : addOutputs) {
 			handleFileUpdate(outputInfo);
 		}
 	}
 
-	public void handleFileUpdate(FileRecord fr) {
+	public void handleFileUpdate(FileRecord fr) throws IOException {
 		final File localFile = new File(root, fr.relPath);
 		final long lastModified = getModification(fr);
 		final String uri = fr.fileURI;
 		if (localFile.exists()) {
 			final long localLastModified = localFile.lastModified();
 			if ((localLastModified < lastModified) || (lastModified == 0)) {
-				ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
+				final String hash = Files.asByteSource(localFile).hash(Hashing.sha1()).toString();
+				if (fr.hash != hash) {
+					ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
+				} else {
+					localFile.setLastModified(lastModified);
+				}
 			} else {
 				if (localLastModified != lastModified) {
 					localFile.renameTo(new File(localFile.getParent(), localFile.getName() + "_conflict" + localLastModified));

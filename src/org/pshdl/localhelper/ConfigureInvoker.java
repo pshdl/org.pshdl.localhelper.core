@@ -44,8 +44,8 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 
 	public static String getExecutableName() {
 		if (OS.indexOf("win") >= 0)
-			return "fpga_progammer.exe";
-		return "fpga_progammer";
+			return "fpga_programmer.exe";
+		return "fpga_programmer";
 	}
 
 	public ConfigureInvoker(ConnectionHelper ch, Configuration config) {

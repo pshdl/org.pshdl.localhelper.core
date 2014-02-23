@@ -36,6 +36,8 @@ import org.pshdl.localhelper.WorkspaceHelper.Severity;
 import org.pshdl.localhelper.actel.*;
 import org.pshdl.rest.models.*;
 
+import com.google.common.base.*;
+
 public class PSSyncCommandLine implements IWorkspaceListener {
 	private static Options options = generateOptions();
 
@@ -152,6 +154,16 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		config.synplify = new File(cli.getOptionValue("syn", ActelSynthesis.SYNPLIFY.getAbsolutePath()));
 		config.acttclsh = new File(cli.getOptionValue("atcl", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath()));
 		config.progammer = new File(cli.getOptionValue("prg", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath()));
+		if (!config.progammer.exists()) {
+			final Iterable<String> properties = Splitter.on(':').trimResults().omitEmptyStrings().split(System.getProperty("java.library.path"));
+			for (final String prop : properties) {
+				final File file = new File(new File(prop), ConfigureInvoker.getExecutableName());
+				if (file.exists()) {
+					config.progammer = file;
+					break;
+				}
+			}
+		}
 		config.comPort = cli.getOptionValue("com", null);
 		return config;
 	}

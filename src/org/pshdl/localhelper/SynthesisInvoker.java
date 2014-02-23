@@ -123,7 +123,7 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 
 		public FileRecord addFileRecord(final CompileInfo info, final File srrLog, final String relPath, boolean report) throws IOException {
 			final FileRecord fileRecord = new FileRecord(srrLog, workspaceDir, workspaceID);
-			fileRecord.relPath = relPath;
+			fileRecord.updateURI(relPath, workspaceID);
 			info.getFiles().add(fileRecord);
 			connectionHelper.uploadDerivedFile(srrLog, workspaceID, relPath, info, "SynSettings.json");
 			if (report) {

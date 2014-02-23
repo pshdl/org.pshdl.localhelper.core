@@ -43,6 +43,7 @@ import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpecGroup;
 import org.xml.sax.*;
 import org.xml.sax.helpers.*;
 
+import com.fasterxml.jackson.databind.*;
 import com.google.common.base.*;
 import com.google.common.collect.*;
 import com.google.common.io.*;
@@ -69,12 +70,17 @@ public class PSHDLBoardConfig {
 			@Override
 			public void startElement(String uri, String localName, String qName, Attributes attributes) throws SAXException {
 				final String id = attributes.getValue("id");
-				if ((id != null) && id.startsWith("Pin")) {
-					final Matcher matcher = p.matcher(id);
-					if (matcher.find()) {
-						res.put(matcher.group(1), id);
+				final Set<String> allow = Sets.newHashSet("SCL", "SDA", "TDO", "TMS", "TRST", "TDI");
+				if (id != null) {
+					if (id.startsWith("Pin") || id.startsWith("GND") || id.startsWith("VCC") || allow.contains(id)) {
+						final Matcher matcher = p.matcher(id);
+						if (matcher.find()) {
+							res.put(matcher.group(1), id);
+						} else {
+							res.put(id, id);
+						}
 					} else {
-						res.put(id, id);
+						System.out.println("Ignoring:" + id);
 					}
 				}
 			}
@@ -88,10 +94,12 @@ public class PSHDLBoardConfig {
 
 	public static void main(String[] args) throws Exception {
 		final BoardSpecSettings spec = generateBoardSpec();
-		JSONHelper.getWriter().writeValue(System.out, spec);
-		generateExample(spec);
-		// final String string = spec.toString("otherClock", "reset_n", new
-		// BoardSpecSettings.PDCWriter());
+		JSONHelper.getWriter().writeValue(new File("/Users/karstenbecker/Dropbox/PSHDL/boards/pshdlBoard.json"), spec);
+		// generateExample(spec);
+		final ObjectReader reader = JSONHelper.getReader(SynthesisSettings.class);
+		final SynthesisSettings syn = reader.readValue(new File("/var/pshdl/5A186C450BB3539E/SynSettings.json"));
+		final String string = syn.toString("clock", "reset", spec, new SynthesisSettings.PDCWriter());
+		System.out.println(string);
 	}
 
 	public static void generateExample(BoardSpecSettings board) {
@@ -199,7 +207,7 @@ public class PSHDLBoardConfig {
 		clk.assignedSignal = "$clk";
 		final PinSpec oszilator = new PinSpec("oszilator", "93", "This is the DS1089L oszilator which is not populated by default", attr, null, null, HDLDirection.IN);
 		final PinSpec button1 = new PinSpec("Button[0]", "98", "This is button S1", attr, null, Polarity.active_low, HDLDirection.IN);
-		final PinSpec button2 = new PinSpec("Button[1]", "23", "This is button SS", attr, null, Polarity.active_low, HDLDirection.IN);
+		final PinSpec button2 = new PinSpec("Button[1]", "23", "This is button S2", attr, null, Polarity.active_low, HDLDirection.IN);
 		return new PinSpecGroup("Buttons/clock", "There are two push buttons directly attached to the FPGA", clk, oszilator, button1, button2);
 	}
 
