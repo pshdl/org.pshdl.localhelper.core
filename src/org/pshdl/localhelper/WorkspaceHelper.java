@@ -76,7 +76,7 @@ public class WorkspaceHelper {
 		public File rootFolder;
 		public URI rootURI;
 		public Set<File> monitoredFiles = Sets.newCopyOnWriteArraySet();
-		private final Set<String> extensions = Sets.newHashSet("pshdl", "vhd", "vhdl");
+		private final Set<String> extensions = Sets.newHashSet("pshdl", "vhd", "vhdl", "json");
 
 		public FileMonitor(File rootFolder) {
 			super();
@@ -133,7 +133,13 @@ public class WorkspaceHelper {
 					if (getModification(record) < file.lastModified()) {
 						System.out.println("WorkspaceHelper.FileMonitor.findMonitorFiles() Uploading outdated file");
 						try {
-							ch.uploadFile(file, workspaceID, record.relPath);
+							final String hash = Files.asByteSource(file).hash(Hashing.sha1()).toString();
+							if (hash.equalsIgnoreCase(record.hash)) {
+								System.out.println("WorkspaceHelper.FileMonitor.findMonitorFiles() Hash still fits, resetting modification stamp");
+								file.setLastModified(getModification(record));
+							} else {
+								ch.uploadFile(file, workspaceID, record.relPath);
+							}
 							listener.fileOperation(FileOp.UPLOADED, file);
 						} catch (final IOException e) {
 							listener.doLog(e);

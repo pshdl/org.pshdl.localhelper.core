@@ -40,11 +40,13 @@ import org.pshdl.rest.models.settings.*;
 import com.fasterxml.jackson.databind.*;
 import com.google.common.collect.*;
 
-public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
+public class SynthesisInvoker implements MessageHandler<String> {
 
 	private static Executor executor = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
 
 	public class SynJob implements Runnable {
+
+		private static final String SYNTHESIS_CREATOR = "Synthesis";
 
 		private final class VHDLFile implements FilenameFilter {
 			@Override
@@ -59,10 +61,12 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 
 		private final SynthesisSettings settings;
 		private final File workspaceDir;
+		private final String settingsFile;
 		private final String workspaceID;
 
-		public SynJob(SynthesisSettings contents, File workspaceDir, String workspaceID) {
+		public SynJob(SynthesisSettings contents, String settingsFile, File workspaceDir, String workspaceID) {
 			this.settings = contents;
+			this.settingsFile = settingsFile;
 			this.workspaceDir = workspaceDir;
 			this.workspaceID = workspaceID;
 		}
@@ -81,34 +85,36 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 				final File boardFile = new File(workspaceDir, settings.board);
 				final ObjectReader reader = JSONHelper.getReader(BoardSpecSettings.class);
 				final BoardSpecSettings board = reader.readValue(boardFile);
-				ActelSynthesis.createSynthesisFiles(settings.topModule, files, board, synDir, workspaceDir, settings);
+				final String topModule = settings.topModule;
+				final String wrappedModule = "Synthesis" + topModule + "Wrapper";
+				ActelSynthesis.createSynthesisFiles(topModule, files, board, synDir, workspaceDir, settings);
 				sendMessage(ProgressType.progress, 0.1, "Invoking Synthesis");
 				final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
 				final Process synProcess = runProcess(synDir, synProcessBuilder, 5, "synthesis", 0.2);
 				final CompileInfo info = new CompileInfo();
 				info.setCreated(System.currentTimeMillis());
-				info.setCreator("Synthesis");
+				info.setCreator(SYNTHESIS_CREATOR);
 				final String synRelPath = "src-gen/synthesis/synthesis.log";
 				final File stdOut = new File(synDir, "stdout.log");
-				addFileRecord(info, stdOut, synRelPath, true);
+				addFileRecord(info, stdOut, synRelPath, true, settingsFile);
 				if (synProcess.exitValue() != 0) {
-					final File srrLog = new File(synDir, settings.topModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/" + settings.topModule + ".srr";
-					addFileRecord(info, srrLog, implRelPath, true);
+					final File srrLog = new File(synDir, wrappedModule + ".srr");
+					final String implRelPath = "src-gen/synthesis/" + topModule + ".srr";
+					addFileRecord(info, srrLog, implRelPath, true, settingsFile);
 					sendMessage(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
 				} else {
 					sendMessage(ProgressType.progress, 0.3, "Starting implementation");
 					final ProcessBuilder mapProcessBuilder = new ProcessBuilder(ActelSynthesis.ACTEL_TCLSH.getAbsolutePath(), "ActelSynthScript.tcl");
 					final Process mapProcess = runProcess(synDir, mapProcessBuilder, 10, "implementation", 0.4);
-					final File srrLog = new File(synDir, settings.topModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/" + settings.topModule + ".srr";
-					addFileRecord(info, srrLog, implRelPath, true);
+					final File srrLog = new File(synDir, wrappedModule + ".srr");
+					final String implRelPath = "src-gen/synthesis/" + topModule + ".srr";
+					addFileRecord(info, srrLog, implRelPath, true, settingsFile);
 					if (mapProcess.exitValue() != 0) {
 						sendMessage(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + mapProcess.exitValue());
 					} else {
-						final File datFile = new File(synDir, settings.topModule + ".dat");
-						final String datRelPath = "src-gen/synthesis/actelConfig.dat";
-						final FileRecord record = addFileRecord(info, datFile, datRelPath, false);
+						final File datFile = new File(synDir, wrappedModule + ".dat");
+						final String datRelPath = "src-gen/synthesis/" + topModule + ".dat";
+						final FileRecord record = addFileRecord(info, datFile, datRelPath, false, settingsFile);
 						sendMessage(ProgressType.progress, 1.0, "Bitstream creation succeeded!");
 						sendMessage(ProgressType.done, null, writer.writeValueAsString(record));
 						connectionHelper.postMessage(Message.COMP_SYNTHESIS, "CompileInfo[]", new CompileInfo[] { info });
@@ -121,11 +127,11 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 
 		private final ObjectWriter writer = JSONHelper.getWriter();
 
-		public FileRecord addFileRecord(final CompileInfo info, final File srrLog, final String relPath, boolean report) throws IOException {
+		public FileRecord addFileRecord(final CompileInfo info, final File srrLog, final String relPath, boolean report, String settingsFile) throws IOException {
 			final FileRecord fileRecord = new FileRecord(srrLog, workspaceDir, workspaceID);
-			fileRecord.updateURI(relPath, workspaceID);
+			fileRecord.updateURI(workspaceID, relPath);
 			info.getFiles().add(fileRecord);
-			connectionHelper.uploadDerivedFile(srrLog, workspaceID, relPath, info, "SynSettings.json");
+			connectionHelper.uploadDerivedFile(srrLog, workspaceID, relPath, info, settingsFile);
 			if (report) {
 				sendMessage(ProgressType.report, null, writer.writeValueAsString(fileRecord));
 			}
@@ -199,9 +205,11 @@ public class SynthesisInvoker implements MessageHandler<SynthesisSettings> {
 	}
 
 	@Override
-	public void handle(Message<SynthesisSettings> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
-		final SynthesisSettings contents = WorkspaceHelper.getContent(msg, SynthesisSettings.class);
-		executor.execute(new SynJob(contents, workspaceDir, workspaceID));
+	public void handle(Message<String> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+		final String path = WorkspaceHelper.getContent(msg, String.class);
+		final ObjectReader reader = JSONHelper.getReader(SynthesisSettings.class);
+		final SynthesisSettings contents = reader.readValue(new File(workspaceDir, path));
+		executor.execute(new SynJob(contents, path, workspaceDir, workspaceID));
 	}
 
 }

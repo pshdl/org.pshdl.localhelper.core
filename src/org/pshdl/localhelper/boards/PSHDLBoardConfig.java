@@ -203,12 +203,16 @@ public class PSHDLBoardConfig {
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
-		final PinSpec clk = new PinSpec("clk", "97", "This is the primary clock driven by PC4 of the Atmel", attr, new TimeSpec("32", "MHz"), null, HDLDirection.IN);
+		final PinSpec clk = new PinSpec("Clock", "97", "This is the primary clock driven by PC4 of the Atmel", attr, new TimeSpec("32", "MHz"), null, HDLDirection.IN);
 		clk.assignedSignal = "$clk";
+		final HashMap<String, String> reset = new HashMap<>(attr);
+		reset.put(PinSpec.INVERT, PinSpec.NO_VALUE);
+		final PinSpec rstButton = new PinSpec("Reset", "98", "This is the inverted button S1", reset, null, Polarity.active_low, HDLDirection.IN);
+		rstButton.assignedSignal = "$rst";
 		final PinSpec oszilator = new PinSpec("oszilator", "93", "This is the DS1089L oszilator which is not populated by default", attr, null, null, HDLDirection.IN);
 		final PinSpec button1 = new PinSpec("Button[0]", "98", "This is button S1", attr, null, Polarity.active_low, HDLDirection.IN);
 		final PinSpec button2 = new PinSpec("Button[1]", "23", "This is button S2", attr, null, Polarity.active_low, HDLDirection.IN);
-		return new PinSpecGroup("Buttons/clock", "There are two push buttons directly attached to the FPGA", clk, oszilator, button1, button2);
+		return new PinSpecGroup("Buttons/clock", "There are two push buttons directly attached to the FPGA", clk, rstButton, oszilator, button1, button2);
 	}
 
 	private static PinSpecGroup createVertical() {

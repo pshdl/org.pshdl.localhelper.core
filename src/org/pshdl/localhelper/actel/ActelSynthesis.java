@@ -56,11 +56,12 @@ public class ActelSynthesis {
 		return true;
 	}
 
-	public static void createSynthesisFiles(final String topModule, final ArrayList<File> vhdlFiles, final BoardSpecSettings board, final File synDir, final File workspace,
+	public static void createSynthesisFiles(String topModule, final ArrayList<File> vhdlFiles, final BoardSpecSettings board, final File synDir, final File workspace,
 			SynthesisSettings settings) throws IOException, FileNotFoundException {
-		synDir.mkdir();
+		synDir.mkdirs();
+		topModule = "Synthesis" + topModule + "Wrapper";
 		generateBatFile(synDir, SYN_VERSION, LIBERO_PATH);
-		generatePDCFile(synDir, topModule, settings, board, "clk", "reset_n");
+		generatePDCFile(synDir, topModule, settings, board, null, null);
 		generateActelSynFile(synDir, topModule, topModule + "_constr");
 		generateSynPrjFile(synDir, topModule, vhdlFiles);
 		final FileOutputStream fos = new FileOutputStream(new File(synDir, "pshdl_pkg.vhd"));

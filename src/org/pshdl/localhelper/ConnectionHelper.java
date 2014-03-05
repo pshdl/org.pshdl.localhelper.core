@@ -349,7 +349,7 @@ public class ConnectionHelper {
 				.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
 		final int status = response.getStatus();
 		if (status != 201) {
-			listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status);
+			listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status + " " + response.readEntity(String.class));
 		}
 
 	}
