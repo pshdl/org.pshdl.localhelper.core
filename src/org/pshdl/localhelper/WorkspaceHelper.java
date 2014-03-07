@@ -267,10 +267,15 @@ public class WorkspaceHelper {
 		handlerMap.put(Message.WORK_UPDATED, new FileInfoArrayHandler());
 		handlerMap.put(Message.WORK_DELETED, new FileInfoDeleteHandler());
 		handlerMap.put(Message.COMPILER, new CompileContainerHandler());
+		updateServices();
+	}
+
+	public void updateServices() {
 		final boolean synthesisAvailable = ActelSynthesis.isSynthesisAvailable();
 		final boolean hasBoard = config.comPort != null;
 		psa = new ServiceAdvertiser(synthesisAvailable, hasBoard);
 		handlerMap.put(Message.CLIENT_CONNECTED, psa);
+		handlerMap.put(Message.SERVICE_DISCOVER, psa);
 		if (synthesisAvailable) {
 			handlerMap.put(Message.SYNTHESIS_RUN, new SynthesisInvoker(ch));
 		}
@@ -446,6 +451,10 @@ public class WorkspaceHelper {
 
 	public void announceServices() throws IOException {
 		psa.doPost();
+	}
+
+	public String makeRelative(File localFile) {
+		return root.toURI().relativize(localFile.toURI()).toString();
 	}
 
 }

@@ -27,6 +27,7 @@
 package org.pshdl.localhelper;
 
 import java.io.*;
+import java.util.prefs.*;
 
 import org.apache.commons.cli.*;
 import org.pshdl.localhelper.ConnectionHelper.Status;
@@ -43,11 +44,41 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 
 	public static class Configuration {
 		public String workspaceID;
+		public String comPort;
 		public File workspaceDir;
 		public File synplify;
 		public File acttclsh;
 		public File progammer;
-		public String comPort;
+
+		public void loadFromPref(Preferences pref) {
+			workspaceID = pref.get("workspaceID", null);
+			comPort = pref.get("comPort", null);
+			workspaceDir = new File(pref.get("workspaceDir", "."));
+			synplify = new File(pref.get("synplify", ActelSynthesis.SYNPLIFY.getAbsolutePath()));
+			acttclsh = new File(pref.get("acttclsh", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath()));
+			guessProgrammer(this, pref.get("progammer", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath()));
+		}
+
+		public void saveToPreferences(Preferences pref) {
+			if (workspaceID != null) {
+				pref.put("workspaceID", workspaceID);
+			}
+			if (comPort != null) {
+				pref.put("comPort", comPort);
+			}
+			if (workspaceDir != null) {
+				pref.put("workspaceDir", workspaceDir.getAbsolutePath());
+			}
+			if (synplify != null) {
+				pref.put("synplify", synplify.getAbsolutePath());
+			}
+			if (acttclsh != null) {
+				pref.put("acttclsh", acttclsh.getAbsolutePath());
+			}
+			if (progammer != null) {
+				pref.put("progammer", progammer.getAbsolutePath());
+			}
+		}
 	}
 
 	public static void main(String[] args) throws ParseException, InterruptedException, IOException {
@@ -153,7 +184,14 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		}
 		config.synplify = new File(cli.getOptionValue("syn", ActelSynthesis.SYNPLIFY.getAbsolutePath()));
 		config.acttclsh = new File(cli.getOptionValue("atcl", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath()));
-		config.progammer = new File(cli.getOptionValue("prg", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath()));
+		final String optionValue = cli.getOptionValue("prg", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath());
+		guessProgrammer(config, optionValue);
+		config.comPort = cli.getOptionValue("com", null);
+		return config;
+	}
+
+	public static void guessProgrammer(final Configuration config, String optionValue) {
+		config.progammer = new File(optionValue);
 		if (!config.progammer.exists()) {
 			final Iterable<String> properties = Splitter.on(':').trimResults().omitEmptyStrings().split(System.getProperty("java.library.path"));
 			for (final String prop : properties) {
@@ -164,7 +202,5 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 				}
 			}
 		}
-		config.comPort = cli.getOptionValue("com", null);
-		return config;
 	}
 }
