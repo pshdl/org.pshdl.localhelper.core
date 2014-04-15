@@ -1,26 +1,26 @@
 /*******************************************************************************
  * PSHDL is a library and (trans-)compiler for PSHDL input. It generates
  *     output suitable for implementation or simulation of it.
- *     
+ *
  *     Copyright (C) 2014 Karsten Becker (feedback (at) pshdl (dot) org)
- * 
+ *
  *     This program is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
- * 
+ *
  *     This program is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
- * 
+ *
  *     You should have received a copy of the GNU General Public License
  *     along with this program.  If not, see <http://www.gnu.org/licenses/>.
- * 
+ *
  *     This License does not grant permission to use the trade names, trademarks,
- *     service marks, or product names of the Licensor, except as required for 
+ *     service marks, or product names of the Licensor, except as required for
  *     reasonable and customary use in describing the origin of the Work.
- * 
+ *
  * Contributors:
  *     Karsten Becker - initial API and implementation
  ******************************************************************************/
@@ -53,6 +53,7 @@ public class PSHDLBoardConfig {
 	public static BoardSpecSettings generateBoardSpec() throws Exception {
 		final PinSpecGroup buttons = createButtons();
 		final PinSpecGroup verticalConnect = createVertical();
+		final PinSpecGroup blueLEDs = createBlueLEDs();
 		final PinSpecGroup spi = createSPI();
 		final PinSpecGroup arm1 = createArm1();
 		final PinSpecGroup arm2 = createArm2();
@@ -87,8 +88,8 @@ public class PSHDLBoardConfig {
 		};
 		saxParser.parse(file, handler);
 		final InteractiveMap map = new InteractiveMap(svg, res.asMap());
-		final BoardSpecSettings pshdlBoard = new BoardSpecSettings("PSHDL Board", "Version 0.1 of the PSHDL Board", fpga, map, buttons, verticalConnect, spi, arm1, arm2, arm3,
-				arm4);
+		final BoardSpecSettings pshdlBoard = new BoardSpecSettings("PSHDL Board", "Version 0.1 of the PSHDL Board", fpga, map, buttons, verticalConnect, blueLEDs, spi, arm1, arm2,
+				arm3, arm4);
 		return pshdlBoard;
 	}
 
@@ -224,6 +225,18 @@ public class PSHDLBoardConfig {
 		final PinSpec upTwo = new PinSpec("Vertical_interconnect_up[1]", "44", "The second interconnect pin upwards", attr, null, null, HDLDirection.INOUT);
 		final PinSpec downOne = new PinSpec("Vertical_interconnect_down[0]", "3", "The first interconnect pin downwards", attr, null, null, HDLDirection.INOUT);
 		final PinSpec downTwo = new PinSpec("Vertical_interconnect_down[1]", "2", "The second interconnect pin downwards", attr, null, null, HDLDirection.INOUT);
+		return new PinSpecGroup("Vertical Connect", "Those connectors can be used to form a vertical interconnect", upOne, upTwo, downOne, downTwo);
+	}
+
+	private static PinSpecGroup createBlueLEDs() {
+		final Map<String, String> attr = Maps.newHashMap();
+		attr.put("fixed", "yes");
+		attr.put("iostd", "LVTTL");
+
+		final PinSpec upOne = new PinSpec("BlueLED[0]", "45", "Right-hand side upper D5 LED", attr, null, null, HDLDirection.OUT);
+		final PinSpec upTwo = new PinSpec("BlueLED[1]", "44", "Right-hand side lower D4 LED", attr, null, null, HDLDirection.OUT);
+		final PinSpec downOne = new PinSpec("BlueLED[2]", "3", "Left-hand  side lower D2 LED", attr, null, null, HDLDirection.OUT);
+		final PinSpec downTwo = new PinSpec("BlueLED[3]", "2", "Left-hand side upper D3 LED", attr, null, null, HDLDirection.OUT);
 		return new PinSpecGroup("Vertical Connect", "Those connectors can be used to form a vertical interconnect", upOne, upTwo, downOne, downTwo);
 	}
 
