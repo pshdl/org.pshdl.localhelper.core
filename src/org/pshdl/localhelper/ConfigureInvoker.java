@@ -26,13 +26,19 @@
  ******************************************************************************/
 package org.pshdl.localhelper;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
 import org.pshdl.localhelper.PSSyncCommandLine.Configuration;
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.MessageHandler;
 import org.pshdl.localhelper.WorkspaceHelper.Severity;
-import org.pshdl.rest.models.*;
+import org.pshdl.rest.models.FileRecord;
+import org.pshdl.rest.models.Message;
+import org.pshdl.rest.models.ProgressFeedback;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
 
 public class ConfigureInvoker implements MessageHandler<FileRecord> {
@@ -75,7 +81,7 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 	}
 
 	public Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress) throws IOException,
-	InterruptedException {
+			InterruptedException {
 		processBuilder.redirectErrorStream(true);
 		processBuilder.directory(synDir);
 		final Process process = processBuilder.start();

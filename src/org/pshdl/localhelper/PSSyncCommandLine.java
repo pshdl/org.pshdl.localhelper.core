@@ -26,18 +26,24 @@
  ******************************************************************************/
 package org.pshdl.localhelper;
 
-import java.io.*;
-import java.util.prefs.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.prefs.Preferences;
 
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 import org.pshdl.localhelper.ConnectionHelper.Status;
 import org.pshdl.localhelper.WorkspaceHelper.FileOp;
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.Severity;
-import org.pshdl.localhelper.actel.*;
-import org.pshdl.rest.models.*;
+import org.pshdl.localhelper.actel.ActelSynthesis;
+import org.pshdl.rest.models.Message;
 
-import com.google.common.base.*;
+import com.google.common.base.Splitter;
 
 public class PSSyncCommandLine implements IWorkspaceListener {
 	private static Options options = generateOptions();

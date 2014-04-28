@@ -26,21 +26,35 @@
  ******************************************************************************/
 package org.pshdl.localhelper;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.pshdl.localhelper.ConnectionHelper.Status;
 import org.pshdl.localhelper.PSSyncCommandLine.Configuration;
-import org.pshdl.localhelper.actel.*;
-import org.pshdl.rest.models.*;
+import org.pshdl.localhelper.actel.ActelSynthesis;
+import org.pshdl.rest.models.CompileInfo;
+import org.pshdl.rest.models.FileInfo;
+import org.pshdl.rest.models.FileRecord;
+import org.pshdl.rest.models.Message;
 
-import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.databind.*;
-import com.google.common.base.*;
-import com.google.common.collect.*;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.base.Charsets;
+import com.google.common.base.Splitter;
+import com.google.common.collect.LinkedListMultimap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import com.google.common.hash.Hashing;
-import com.google.common.io.*;
+import com.google.common.io.Files;
 
 public class WorkspaceHelper {
 
@@ -388,7 +402,7 @@ public class WorkspaceHelper {
 			final long localLastModified = localFile.lastModified();
 			if ((localLastModified < lastModified) || (lastModified == 0)) {
 				final String hash = Files.asByteSource(localFile).hash(Hashing.sha1()).toString();
-				if (fr.hash != hash) {
+				if (fr.hash.equals(hash)) {
 					ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
 				} else {
 					localFile.setLastModified(lastModified);

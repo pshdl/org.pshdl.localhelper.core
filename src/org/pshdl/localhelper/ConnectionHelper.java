@@ -26,27 +26,47 @@
  ******************************************************************************/
 package org.pshdl.localhelper;
 
-import java.io.*;
-import java.net.*;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.Date;
+import java.util.Formatter;
+import java.util.Random;
+import java.util.SortedSet;
 
-import javax.ws.rs.client.*;
-import javax.ws.rs.core.*;
+import javax.ws.rs.client.Client;
+import javax.ws.rs.client.ClientBuilder;
+import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.WebTarget;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
-import org.glassfish.jersey.apache.connector.*;
-import org.glassfish.jersey.client.*;
-import org.glassfish.jersey.media.multipart.*;
-import org.glassfish.jersey.media.sse.*;
+import org.glassfish.jersey.apache.connector.ApacheConnector;
+import org.glassfish.jersey.client.ClientConfig;
+import org.glassfish.jersey.media.multipart.FormDataBodyPart;
+import org.glassfish.jersey.media.multipart.FormDataContentDisposition;
+import org.glassfish.jersey.media.multipart.FormDataMultiPart;
+import org.glassfish.jersey.media.multipart.MultiPartFeature;
+import org.glassfish.jersey.media.sse.EventSource;
+import org.glassfish.jersey.media.sse.InboundEvent;
+import org.glassfish.jersey.media.sse.SseFeature;
 import org.pshdl.localhelper.WorkspaceHelper.FileOp;
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.Severity;
-import org.pshdl.rest.models.*;
+import org.pshdl.rest.models.CompileInfo;
+import org.pshdl.rest.models.FileInfo;
+import org.pshdl.rest.models.Message;
+import org.pshdl.rest.models.RepoInfo;
 
-import com.fasterxml.jackson.core.*;
-import com.fasterxml.jackson.databind.*;
-import com.google.common.collect.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.collect.ComparisonChain;
+import com.google.common.collect.Sets;
 import com.google.common.hash.Hashing;
-import com.google.common.io.*;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.Files;
 
 public class ConnectionHelper {
 
@@ -219,7 +239,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 *
+		 * 
 		 * @see java.lang.Object#hashCode()
 		 */
 		@Override
@@ -233,7 +253,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 *
+		 * 
 		 * @see java.lang.Object#equals(java.lang.Object)
 		 */
 		@Override

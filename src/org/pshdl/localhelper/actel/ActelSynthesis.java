@@ -26,15 +26,22 @@
  ******************************************************************************/
 package org.pshdl.localhelper.actel;
 
-import java.io.*;
-import java.util.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
-import org.pshdl.model.utils.internal.*;
-import org.pshdl.rest.models.settings.*;
+import org.pshdl.model.utils.internal.Helper;
+import org.pshdl.rest.models.settings.BoardSpecSettings;
+import org.pshdl.rest.models.settings.SynthesisSettings;
 
-import com.google.common.base.*;
-import com.google.common.collect.*;
-import com.google.common.io.*;
+import com.google.common.base.Charsets;
+import com.google.common.collect.Maps;
+import com.google.common.io.ByteStreams;
+import com.google.common.io.Files;
 
 public class ActelSynthesis {
 	private static String SYN_VERSION = System.getProperty("SYN_VERSION", "H201303MSP1-1");

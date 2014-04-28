@@ -26,19 +26,19 @@
  ******************************************************************************/
 package org.pshdl.localhelper.boards;
 
-import java.io.*;
-import java.util.*;
+import java.io.IOException;
+import java.util.Map;
 
-import org.pshdl.localhelper.*;
+import org.pshdl.localhelper.JSONHelper;
 import org.pshdl.model.HDLVariableDeclaration.HDLDirection;
-import org.pshdl.rest.models.settings.*;
+import org.pshdl.rest.models.settings.BoardSpecSettings;
 import org.pshdl.rest.models.settings.BoardSpecSettings.FPGASpec;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec.Polarity;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec.TimeSpec;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpecGroup;
 
-import com.google.common.collect.*;
+import com.google.common.collect.Maps;
 
 public class MicroBoardConfig {
 

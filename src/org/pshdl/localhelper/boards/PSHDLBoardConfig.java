@@ -26,27 +26,37 @@
  ******************************************************************************/
 package org.pshdl.localhelper.boards;
 
-import java.io.*;
-import java.util.*;
-import java.util.regex.*;
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
-import javax.xml.parsers.*;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
 
-import org.pshdl.localhelper.*;
+import org.pshdl.localhelper.JSONHelper;
 import org.pshdl.model.HDLVariableDeclaration.HDLDirection;
-import org.pshdl.rest.models.settings.*;
+import org.pshdl.rest.models.settings.BoardSpecSettings;
 import org.pshdl.rest.models.settings.BoardSpecSettings.FPGASpec;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec.Polarity;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec.TimeSpec;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpecGroup;
-import org.xml.sax.*;
-import org.xml.sax.helpers.*;
+import org.pshdl.rest.models.settings.InteractiveMap;
+import org.pshdl.rest.models.settings.SynthesisSettings;
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+import org.xml.sax.helpers.DefaultHandler;
 
-import com.fasterxml.jackson.databind.*;
-import com.google.common.base.*;
-import com.google.common.collect.*;
-import com.google.common.io.*;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.google.common.base.Charsets;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
+import com.google.common.io.Files;
 
 public class PSHDLBoardConfig {
 

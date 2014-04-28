@@ -26,19 +26,31 @@
  ******************************************************************************/
 package org.pshdl.localhelper;
 
-import java.io.*;
-import java.util.*;
-import java.util.concurrent.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.MessageHandler;
-import org.pshdl.localhelper.actel.*;
-import org.pshdl.rest.models.*;
+import org.pshdl.localhelper.actel.ActelSynthesis;
+import org.pshdl.rest.models.CompileInfo;
+import org.pshdl.rest.models.FileRecord;
+import org.pshdl.rest.models.Message;
+import org.pshdl.rest.models.ProgressFeedback;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
-import org.pshdl.rest.models.settings.*;
+import org.pshdl.rest.models.settings.BoardSpecSettings;
+import org.pshdl.rest.models.settings.SynthesisSettings;
 
-import com.fasterxml.jackson.databind.*;
-import com.google.common.collect.*;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.google.common.collect.Lists;
 
 public class SynthesisInvoker implements MessageHandler<String> {
 
@@ -139,7 +151,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		}
 
 		public Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress) throws IOException,
-		InterruptedException {
+				InterruptedException {
 			processBuilder.redirectErrorStream(true);
 			processBuilder.directory(synDir);
 			final Process process = processBuilder.start();
