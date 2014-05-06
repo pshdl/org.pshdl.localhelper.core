@@ -29,7 +29,6 @@ package org.pshdl.localhelper;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,9 +48,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.base.Charsets;
 import com.google.common.base.Splitter;
-import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.hash.Hashing;
 import com.google.common.io.Files;
@@ -253,7 +250,7 @@ public class WorkspaceHelper {
 	private static final ObjectWriter writer = JSONHelper.getWriter();
 	private final IWorkspaceListener listener;
 	private final ConnectionHelper ch;
-	private final Multimap<String, MessageHandler<?>> handlerMap = LinkedListMultimap.create();
+	private final Map<String, MessageHandler<?>> handlerMap = Maps.newHashMap();
 
 	private static final ObjectMapper mapper = JSONHelper.getMapper();
 	private FileMonitor fileMonitor;
@@ -347,15 +344,12 @@ public class WorkspaceHelper {
 		for (final String string : split) {
 			sb.append(string);
 			final String newSubject = sb.toString();
-			final Collection<MessageHandler<?>> handlers = handlerMap.get(newSubject);
-			for (final MessageHandler<?> messageHandler : handlers) {
-				@SuppressWarnings("unchecked")
-				final MessageHandler<T> handler = (MessageHandler<T>) messageHandler;
-				try {
-					handler.handle(message, listener, root, workspaceID);
-				} catch (final Exception e) {
-					listener.doLog(e);
-				}
+			@SuppressWarnings("unchecked")
+			final MessageHandler<T> handler = (MessageHandler<T>) handlerMap.get(newSubject);
+			try {
+				handler.handle(message, listener, root, workspaceID);
+			} catch (final Exception e) {
+				listener.doLog(e);
 			}
 			sb.append(':');
 		}

@@ -185,12 +185,11 @@ public class ConnectionHelper {
 			cdata.add(measurement);
 		}
 		final long diff = cdata.first().diff;
-		if (Math.abs(diff) > 1000) {
-			this.serverDiff = diff;
+		if (Math.abs(diff) > 10000) {
 			listener.doLog(Severity.INFO, "Server time difference is " + format(serverDiff));
-		} else {
-			this.serverDiff = 0;
 		}
+		// Ignoring server time diff because we are hash based now
+		this.serverDiff = 0;
 	}
 
 	private String format(long diff) {
@@ -239,7 +238,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 * 
+		 *
 		 * @see java.lang.Object#hashCode()
 		 */
 		@Override
@@ -253,7 +252,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 * 
+		 *
 		 * @see java.lang.Object#equals(java.lang.Object)
 		 */
 		@Override
