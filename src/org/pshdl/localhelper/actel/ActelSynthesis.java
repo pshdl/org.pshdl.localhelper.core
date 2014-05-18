@@ -30,15 +30,17 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 import org.pshdl.model.utils.internal.Helper;
 import org.pshdl.rest.models.settings.BoardSpecSettings;
+import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.SynthesisSettings;
 
-import com.google.common.base.Charsets;
 import com.google.common.collect.Maps;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
@@ -97,13 +99,26 @@ public class ActelSynthesis {
 
 	private static void generatePDCFile(File synDir, String topName, SynthesisSettings settings, BoardSpecSettings spec, String clockName, String rstName) throws IOException {
 		final File pdcFile = new File(synDir, topName + "_constr.pdc");
-		Files.write(settings.toString(clockName, rstName, spec, new SynthesisSettings.PDCWriter()), pdcFile, Charsets.UTF_8);
+		final String string = settings.toString(clockName, rstName, spec, new SynthesisSettings.PDCWriter());
+		Files.write(string, pdcFile, StandardCharsets.UTF_8);
+		if (pdcFile.length() == 0) {
+			final File logFile = new File(synDir, "PDC_ERR_LOG.txt");
+			try (final PrintStream ps = new PrintStream(logFile)) {
+				System.err.println("The written PDC file: " + pdcFile + " turned out to be zero. This is unexpected. Writting log:" + logFile);
+				ps.println("Output String was: " + string);
+				ps.println("Clock: " + clockName + " Reset:" + rstName);
+				ps.println("PinSpec:");
+				for (final PinSpec over : settings.overrides) {
+					ps.println(over);
+				}
+			}
+		}
 	}
 
 	private static void generateBatFile(File synDir, String synversion, String liberopath) throws IOException {
 		final Map<String, String> options = Maps.newHashMap();
-		options.put("{LIBERO_PATH}", liberopath);
-		options.put("{SYNPLICITY_VER}", synversion);
+		options.put("{SYNPLIFY_PATH}", ActelSynthesis.SYNPLIFY.getAbsolutePath());
+		options.put("{ACTEL_PATH}", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath());
 		Files.write(Helper.processFile(ActelSynthesis.class, "synth.bat", options), new File(synDir, "synth.bat"));
 	}
 }

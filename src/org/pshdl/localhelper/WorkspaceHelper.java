@@ -347,7 +347,9 @@ public class WorkspaceHelper {
 			@SuppressWarnings("unchecked")
 			final MessageHandler<T> handler = (MessageHandler<T>) handlerMap.get(newSubject);
 			try {
-				handler.handle(message, listener, root, workspaceID);
+				if (handler != null) {
+					handler.handle(message, listener, root, workspaceID);
+				}
 			} catch (final Exception e) {
 				listener.doLog(e);
 			}
