@@ -32,25 +32,53 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.MessageHandler;
 import org.pshdl.localhelper.actel.ActelSynthesis;
+import org.pshdl.model.HDLArgument;
+import org.pshdl.model.HDLAssignment;
+import org.pshdl.model.HDLExpression;
+import org.pshdl.model.HDLInterface;
+import org.pshdl.model.HDLInterfaceInstantiation;
+import org.pshdl.model.HDLInterfaceRef;
+import org.pshdl.model.HDLLiteral;
+import org.pshdl.model.HDLManip;
+import org.pshdl.model.HDLManip.HDLManipType;
+import org.pshdl.model.HDLObject;
+import org.pshdl.model.HDLRange;
+import org.pshdl.model.HDLStatement;
+import org.pshdl.model.HDLUnit;
+import org.pshdl.model.HDLVariable;
+import org.pshdl.model.HDLVariableDeclaration;
+import org.pshdl.model.HDLVariableRef;
+import org.pshdl.model.utils.HDLQualifiedName;
+import org.pshdl.model.utils.HDLQuery;
 import org.pshdl.rest.models.CompileInfo;
 import org.pshdl.rest.models.FileRecord;
 import org.pshdl.rest.models.Message;
 import org.pshdl.rest.models.ProgressFeedback;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
 import org.pshdl.rest.models.settings.BoardSpecSettings;
+import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.SynthesisSettings;
 
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 
 public class SynthesisInvoker implements MessageHandler<String> {
 
@@ -99,6 +127,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 				final BoardSpecSettings board = reader.readValue(boardFile);
 				final String topModule = settings.topModule;
 				final String wrappedModule = "Synthesis" + topModule + "Wrapper";
+
 				ActelSynthesis.createSynthesisFiles(topModule, files, board, synDir, workspaceDir, settings);
 				sendMessage(ProgressType.progress, 0.1, "Invoking Synthesis");
 				final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
@@ -208,6 +237,127 @@ public class SynthesisInvoker implements MessageHandler<String> {
 			}
 			return done;
 		}
+	}
+
+	public static HDLUnit createSynthesisContainer(final SynthesisSettings setting, final HDLQualifiedName instName, final HDLUnit unit) {
+		final HDLVariable hifVar = new HDLVariable().setName("wrapper");
+		final HDLQualifiedName wrapperRef = hifVar.asRef();
+		final HDLInterface unitIF = unit.asInterface();
+		HDLInterfaceInstantiation hii = new HDLInterfaceInstantiation().setHIf(instName).setVar(hifVar);
+		final Map<String, String> overrideParameters = setting.overrideParameters;
+		if (overrideParameters != null) {
+			for (final Entry<String, String> e : overrideParameters.entrySet()) {
+				final HDLExpression expression = getExpression(e.getKey(), e.getValue());
+				if (expression != null) {
+					hii = hii.addArguments(new HDLArgument().setName(e.getKey()).setExpression(expression));
+				}
+			}
+		}
+		final List<HDLStatement> stmnts = Lists.newArrayList();
+		stmnts.add(hii);
+		final Set<String> declaredSignals = Sets.newHashSet();
+		for (final PinSpec ps : setting.overrides) {
+			switch (ps.pinLocation) {
+			case PinSpec.SIG_NONE:
+			case PinSpec.SIG_OPEN:
+				break;
+			case PinSpec.SIG_ALLONE: {
+				final HDLInterfaceRef hir = createInterfaceRef(new HDLInterfaceRef().setHIf(wrapperRef), ps.assignedSignal, wrapperRef);
+				stmnts.add(new HDLAssignment().setLeft(hir).setRight(HDLLiteral.get(1)));
+				break;
+			}
+			case PinSpec.SIG_ALLZERO: {
+				final HDLInterfaceRef hir = createInterfaceRef(new HDLInterfaceRef().setHIf(wrapperRef), ps.assignedSignal, wrapperRef);
+				stmnts.add(new HDLAssignment().setLeft(hir).setRight(HDLLiteral.get(0)));
+				break;
+			}
+			default:
+				final HDLVariableRef var = createInterfaceRef(new HDLVariableRef(), ps.assignedSignal, wrapperRef);
+				final String varName = var.getVarRefName().getLastSegment();
+				if (!declaredSignals.contains(varName)) {
+					declaredSignals.add(varName);
+					final Collection<HDLVariable> vars = HDLQuery.select(HDLVariable.class).from(unitIF).where(HDLVariable.fName).isEqualTo(varName).getAll();
+					for (final HDLVariable hdlVariable : vars) {
+						if (hdlVariable.getContainer() instanceof HDLVariableDeclaration) {
+							HDLVariableDeclaration declaration = (HDLVariableDeclaration) hdlVariable.getContainer();
+							declaration = declaration.setVariables(HDLObject.asList(hdlVariable.setDefaultValue(null)));
+							stmnts.add(declaration);
+							break;
+						}
+					}
+				}
+				final HDLInterfaceRef hir = createInterfaceRef(new HDLInterfaceRef().setHIf(wrapperRef), ps.assignedSignal, wrapperRef);
+				switch (ps.direction) {
+				case IN:
+					stmnts.add(new HDLAssignment().setLeft(hir).setRight(doNeg(var, ps)));
+					break;
+				case OUT:
+					stmnts.add(new HDLAssignment().setLeft(var).setRight(doNeg(hir, ps)));
+					break;
+				case INOUT:
+					stmnts.add(new HDLAssignment().setLeft(hir).setRight(doNeg(var, ps)));
+					stmnts.add(new HDLAssignment().setLeft(var).setRight(doNeg(hir, ps)));
+					break;
+				default:
+				}
+				break;
+			}
+		}
+		final HDLUnit container = new HDLUnit().setSimulation(false).setName("Synthesis" + setting.topModule + "Wrapper").setStatements(stmnts);
+		// System.out.println(container);
+		return container;
+	}
+
+	private static HDLExpression doNeg(HDLVariableRef var, PinSpec ps) {
+		if ((ps.attributes != null) && ps.attributes.containsKey(PinSpec.INVERT))
+			return new HDLManip().setType(HDLManipType.BIT_NEG).setTarget(var);
+		return var;
+	}
+
+	private static final Pattern arrays = Pattern.compile("\\[(.*?)\\]");
+	private static final Pattern bit = Pattern.compile("\\{(.*?)\\}");
+
+	@SuppressWarnings("unchecked")
+	private static <T extends HDLVariableRef> T createInterfaceRef(T hir, String assignedSignal, HDLQualifiedName wrapperRef) {
+		final Matcher arrayM = arrays.matcher(assignedSignal);
+		int lastIndex = assignedSignal.length();
+		while (arrayM.find()) {
+			if (arrayM.start() < lastIndex) {
+				lastIndex = arrayM.start();
+			}
+			hir = (T) hir.addArray(getExpression(null, arrayM.group(1)));
+		}
+		final Matcher bitM = bit.matcher(assignedSignal);
+		if (bitM.find()) {
+			if (bitM.start() < lastIndex) {
+				lastIndex = bitM.start();
+			}
+			hir = (T) hir.setBits(HDLObject.asList(new HDLRange().setTo(getExpression(null, bitM.group(1)))));
+		}
+		hir = (T) hir.setVar(new HDLQualifiedName(assignedSignal.substring(0, lastIndex)));
+		return hir;
+	}
+
+	public static HDLExpression getExpression(final String paramName, final String value) {
+		HDLExpression exp = null;
+		if (value.charAt(0) == '"') {
+			exp = HDLLiteral.getString(value);
+		} else if (value.equalsIgnoreCase("true")) {
+			exp = HDLLiteral.getTrue();
+		} else if (value.equalsIgnoreCase("false")) {
+			exp = HDLLiteral.getFalse();
+		} else if (value.matches("[_\\d]+")) {
+			try {
+				final BigInteger bigVal = new BigInteger(value.trim());
+				exp = HDLLiteral.get(bigVal);
+			} catch (final Exception e1) {
+				throw new IllegalArgumentException("The value '" + value + "' of key '" + paramName + "' is not valid:" + e1.getMessage());
+			}
+		} else if (value.matches("\\D[\\.\\w]*")) {
+			exp = new HDLVariableRef().setVar(new HDLQualifiedName(value));
+		} else
+			throw new IllegalArgumentException("The value '" + value + "' of key '" + paramName + "' is not valid");
+		return exp;
 	}
 
 	private final ConnectionHelper connectionHelper;

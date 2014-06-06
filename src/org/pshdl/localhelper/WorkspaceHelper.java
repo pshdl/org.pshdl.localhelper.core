@@ -55,6 +55,33 @@ import com.google.common.io.Files;
 
 public class WorkspaceHelper {
 
+	public static final class ConsoleListener implements IWorkspaceListener {
+		@Override
+		public void incomingMessage(Message<?> message) {
+			System.out.println("WorkspaceHelper.ConsoleListener.incomingMessage()" + message);
+		}
+
+		@Override
+		public void fileOperation(FileOp op, File localFile) {
+			System.out.println("WorkspaceHelper.ConsoleListener.fileOperation()" + op + " " + localFile);
+		}
+
+		@Override
+		public void doLog(Exception e) {
+			e.printStackTrace();
+		}
+
+		@Override
+		public void doLog(Severity severity, String message) {
+			System.out.println("WorkspaceHelper.ConsoleListener.doLog()" + severity + ":" + message);
+		}
+
+		@Override
+		public void connectionStatus(Status status) {
+			System.out.println("WorkspaceHelper.ConsoleListener.connectionStatus()" + status);
+		}
+	}
+
 	public class ServiceAdvertiser implements MessageHandler<Void> {
 
 		private final boolean synthesisAvailable;
@@ -268,7 +295,11 @@ public class WorkspaceHelper {
 		if (folder != null) {
 			setWorkspace(folder);
 		}
-		this.listener = listener;
+		if (listener != null) {
+			this.listener = listener;
+		} else {
+			this.listener = new ConsoleListener();
+		}
 		this.ch = new ConnectionHelper(listener, this);
 		registerFileSyncHandlers();
 	}
