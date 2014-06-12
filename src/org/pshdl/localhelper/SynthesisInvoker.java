@@ -47,9 +47,9 @@ import java.util.regex.Pattern;
 
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.MessageHandler;
-import org.pshdl.localhelper.actel.ActelSynthesis;
 import org.pshdl.model.HDLArgument;
 import org.pshdl.model.HDLAssignment;
+import org.pshdl.model.HDLExport;
 import org.pshdl.model.HDLExpression;
 import org.pshdl.model.HDLInterface;
 import org.pshdl.model.HDLInterfaceInstantiation;
@@ -63,7 +63,10 @@ import org.pshdl.model.HDLStatement;
 import org.pshdl.model.HDLUnit;
 import org.pshdl.model.HDLVariable;
 import org.pshdl.model.HDLVariableDeclaration;
+import org.pshdl.model.HDLVariableDeclaration.HDLDirection;
 import org.pshdl.model.HDLVariableRef;
+import org.pshdl.model.extensions.FullNameExtension;
+import org.pshdl.model.utils.HDLCore;
 import org.pshdl.model.utils.HDLQualifiedName;
 import org.pshdl.model.utils.HDLQuery;
 import org.pshdl.rest.models.CompileInfo;
@@ -76,17 +79,19 @@ import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.SynthesisSettings;
 
 import com.fasterxml.jackson.databind.ObjectReader;
-import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 
 public class SynthesisInvoker implements MessageHandler<String> {
 
 	private static Executor executor = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 2));
 
-	public class SynJob implements Runnable {
+	public static final String SYNTHESIS_CREATOR = "Synthesis";
 
-		private static final String SYNTHESIS_CREATOR = "Synthesis";
+	public class SynJob implements Runnable, IProgressReporter {
+
+		private static final String SRC_GEN_SYNTHESIS = "src-gen/synthesis";
 
 		private final class VHDLFile implements FilenameFilter {
 			@Override
@@ -104,8 +109,8 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		private final String settingsFile;
 		private final String workspaceID;
 
-		public SynJob(SynthesisSettings contents, String settingsFile, File workspaceDir, String workspaceID) {
-			this.settings = contents;
+		public SynJob(SynthesisSettings settings, String settingsFile, File workspaceDir, String workspaceID) {
+			this.settings = settings;
 			this.settingsFile = settingsFile;
 			this.workspaceDir = workspaceDir;
 			this.workspaceID = workspaceID;
@@ -121,129 +126,140 @@ public class SynthesisInvoker implements MessageHandler<String> {
 				files.addAll(Arrays.asList(list));
 			}
 			try {
-				final File synDir = new File(workspaceDir, "src-gen/synthesis");
+				final File synDir = new File(workspaceDir, SRC_GEN_SYNTHESIS);
+				if (!synDir.exists()) {
+					if (!synDir.mkdirs())
+						throw new IllegalArgumentException("Failed to create directory:" + synDir);
+				}
 				final File boardFile = new File(workspaceDir, settings.board);
 				final ObjectReader reader = JSONHelper.getReader(BoardSpecSettings.class);
 				final BoardSpecSettings board = reader.readValue(boardFile);
+				final ISynthesisTool synTool = toolMap.get(board.fpga.vendor.toLowerCase());
+				if (synTool == null)
+					throw new IllegalArgumentException("Did not find tool for vendor:" + board.fpga.vendor + ". Only know tools for " + toolMap.keySet());
 				final String topModule = settings.topModule;
-				final String wrappedModule = "Synthesis" + topModule + "Wrapper";
-
-				ActelSynthesis.createSynthesisFiles(topModule, files, board, synDir, workspaceDir, settings);
-				sendMessage(ProgressType.progress, 0.1, "Invoking Synthesis");
-				final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
-				final Process synProcess = runProcess(synDir, synProcessBuilder, 5, "synthesis", 0.2);
-				final CompileInfo info = new CompileInfo();
-				info.setCreated(System.currentTimeMillis());
-				info.setCreator(SYNTHESIS_CREATOR);
-				final String synRelPath = "src-gen/synthesis/synthesis.log";
-				final File stdOut = new File(synDir, "stdout.log");
-				addFileRecord(info, stdOut, synRelPath, true, settingsFile);
-				if (synProcess.exitValue() != 0) {
-					final File srrLog = new File(synDir, wrappedModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/" + topModule + ".srr";
-					addFileRecord(info, srrLog, implRelPath, true, settingsFile);
-					sendMessage(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
-				} else {
-					sendMessage(ProgressType.progress, 0.3, "Starting implementation");
-					final ProcessBuilder mapProcessBuilder = new ProcessBuilder(ActelSynthesis.ACTEL_TCLSH.getAbsolutePath(), "ActelSynthScript.tcl");
-					final Process mapProcess = runProcess(synDir, mapProcessBuilder, 10, "implementation", 0.4);
-					final File srrLog = new File(synDir, wrappedModule + ".srr");
-					final String implRelPath = "src-gen/synthesis/" + topModule + ".srr";
-					addFileRecord(info, srrLog, implRelPath, true, settingsFile);
-					if (mapProcess.exitValue() != 0) {
-						sendMessage(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + mapProcess.exitValue());
-					} else {
-						final File datFile = new File(synDir, wrappedModule + ".dat");
-						final String datRelPath = "src-gen/synthesis/" + topModule + ".dat";
-						final FileRecord record = addFileRecord(info, datFile, datRelPath, false, settingsFile);
-						sendMessage(ProgressType.progress, 1.0, "Bitstream creation succeeded!");
-						sendMessage(ProgressType.done, null, writer.writeValueAsString(record));
-						connectionHelper.postMessage(Message.COMP_SYNTHESIS, "CompileInfo[]", new CompileInfo[] { info });
-					}
+				final CompileInfo result = synTool.runSynthesis(topModule, getWrapperName(topModule), files, synDir, board, settings, this, null);
+				if (result != null) {
+					connectionHelper.postMessage(Message.COMP_SYNTHESIS, "CompileInfo[]", new CompileInfo[] { result });
 				}
 			} catch (final Throwable e) {
 				e.printStackTrace();
 			}
 		}
 
-		private final ObjectWriter writer = JSONHelper.getWriter();
-
-		public FileRecord addFileRecord(final CompileInfo info, final File srrLog, final String relPath, boolean report, String settingsFile) throws IOException {
+		@Override
+		public FileRecord reportFile(final CompileInfo info, final File srrLog, final String fileName) throws IOException {
+			final String relPath = SRC_GEN_SYNTHESIS + fileName;
 			final FileRecord fileRecord = new FileRecord(srrLog, workspaceDir, workspaceID);
 			fileRecord.updateURI(workspaceID, relPath);
 			info.getFiles().add(fileRecord);
 			connectionHelper.uploadDerivedFile(srrLog, workspaceID, relPath, info, settingsFile);
-			if (report) {
-				sendMessage(ProgressType.report, null, writer.writeValueAsString(fileRecord));
-			}
 			return fileRecord;
 		}
 
-		public Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress) throws IOException,
-				InterruptedException {
-			processBuilder.redirectErrorStream(true);
-			processBuilder.directory(synDir);
-			final Process process = processBuilder.start();
-			final InputStream is = process.getInputStream();
-			final StringBuilder sb = new StringBuilder();
-			new Thread(new Runnable() {
-				@Override
-				public void run() {
-					final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-					String line = null;
-					double progressCounter = progress;
-					final String absolutePath = synDir.getAbsolutePath();
-					try {
-						while ((line = reader.readLine()) != null) {
-							line = line.replace(absolutePath, "");
-							sb.append(line).append('\n');
-							if (line.startsWith("#!>")) {
-								sendMessage(ProgressType.progress, progressCounter, line.substring(3));
-								progressCounter += 0.15;
-							}
-						}
-					} catch (final IOException e) {
-					}
-				}
-			}, "OutputLogger").start();
-			if (!waitOrTerminate(process, timeOutMinutes)) {
-				sendMessage(ProgressType.error, null, "Consumed more than " + timeOutMinutes + " minutes for " + stage);
-			}
-			if (!sb.toString().trim().isEmpty()) {
-				sendMessage(ProgressType.output, null, sb.toString());
-			}
-			return process;
+		@Override
+		public void reportProgress(ProgressType type, Double progress, String message) throws IOException {
+			sendMessage(type, progress, message);
 		}
 
-		public void sendMessage(ProgressType type, Double progress, String message) throws IOException {
-			final ProgressFeedback synProgress = new ProgressFeedback(type, progress, System.currentTimeMillis(), message);
-			connectionHelper.postMessage(Message.SYNTHESIS_PROGRESS, "ProgressFeedback", synProgress);
-			System.out.println("SynthesisInvoker.SynJob.sendMessage()" + type + " " + message);
-		}
-
-		public boolean waitOrTerminate(final Process synProcess, int waitTime) throws InterruptedException {
-			boolean done = false;
-			for (int i = 0; i < (60 * waitTime); i++) {
-				try {
-					synProcess.exitValue();
-					done = true;
-					break;
-				} catch (final Exception e) {
-				}
-				Thread.sleep(1000);
-			}
-			if (!done) {
-				synProcess.destroy();
-			}
-			return done;
-		}
 	}
 
-	public static HDLUnit createSynthesisContainer(final SynthesisSettings setting, final HDLQualifiedName instName, final HDLUnit unit) {
+	public static interface IProgressReporter {
+		/**
+		 *
+		 * @param type
+		 *            the {@link ProgressType} of this progress
+		 * @param progress
+		 *            either <code>null</code> in case of errors, or a number
+		 *            between (0..1)
+		 * @param message
+		 *            a human readable string that give the user an idea of what
+		 *            is going on, or a JSON object
+		 * @throws IOException
+		 */
+		void reportProgress(ProgressType type, Double progress, String message) throws IOException;
+
+		/**
+		 * This method can be used to create a file record that is used to
+		 * communicate with the server
+		 *
+		 * @param info
+		 *            the info about the synthesis
+		 * @param datFile
+		 *            the generated file
+		 * @param datRelPath
+		 *            the relative path of the file within the workspace
+		 * @return a FileRecord that contains information about the file
+		 * @throws IOException
+		 */
+		FileRecord reportFile(CompileInfo info, File datFile, String datRelPath) throws IOException;
+	}
+
+	public static Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress,
+			final IProgressReporter reporter) throws IOException, InterruptedException {
+		processBuilder.redirectErrorStream(true);
+		processBuilder.directory(synDir);
+		final Process process = processBuilder.start();
+		final InputStream is = process.getInputStream();
+		final StringBuilder sb = new StringBuilder();
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+				String line = null;
+				double progressCounter = progress;
+				final String absolutePath = synDir.getAbsolutePath();
+				try {
+					while ((line = reader.readLine()) != null) {
+						line = line.replace(absolutePath, "");
+						sb.append(line).append('\n');
+						if (line.startsWith("#!>")) {
+							reporter.reportProgress(ProgressType.progress, progressCounter, line.substring(3));
+							progressCounter += 0.15;
+						}
+					}
+				} catch (final IOException e) {
+				}
+			}
+		}, "OutputLogger").start();
+		if (!waitOrTerminate(process, timeOutMinutes)) {
+			reporter.reportProgress(ProgressType.error, null, "Consumed more than " + timeOutMinutes + " minutes for " + stage);
+		}
+		if (!sb.toString().trim().isEmpty()) {
+			reporter.reportProgress(ProgressType.output, null, sb.toString());
+		}
+		return process;
+	}
+
+	public void sendMessage(ProgressType type, Double progress, String message) throws IOException {
+		final ProgressFeedback synProgress = new ProgressFeedback(type, progress, System.currentTimeMillis(), message);
+		connectionHelper.postMessage(Message.SYNTHESIS_PROGRESS, "ProgressFeedback", synProgress);
+		System.out.println("SynthesisInvoker.SynJob.sendMessage()" + type + " " + message);
+	}
+
+	public static boolean waitOrTerminate(final Process synProcess, int waitTime) throws InterruptedException {
+		boolean done = false;
+		for (int i = 0; i < (60 * waitTime); i++) {
+			try {
+				synProcess.exitValue();
+				done = true;
+				break;
+			} catch (final Exception e) {
+			}
+			Thread.sleep(1000);
+		}
+		if (!done) {
+			synProcess.destroy();
+		}
+		return done;
+	}
+
+	public static HDLUnit createSynthesisContainer(final SynthesisSettings setting, final HDLUnit unit) {
 		final HDLVariable hifVar = new HDLVariable().setName("wrapper");
 		final HDLQualifiedName wrapperRef = hifVar.asRef();
 		final HDLInterface unitIF = unit.asInterface();
-		HDLInterfaceInstantiation hii = new HDLInterfaceInstantiation().setHIf(instName).setVar(hifVar);
+		final HDLQualifiedName fqn = FullNameExtension.fullNameOf(unit);
+		HDLInterfaceInstantiation hii = new HDLInterfaceInstantiation().setHIf(fqn).setVar(hifVar);
 		final Map<String, String> overrideParameters = setting.overrideParameters;
 		if (overrideParameters != null) {
 			for (final Entry<String, String> e : overrideParameters.entrySet()) {
@@ -280,8 +296,10 @@ public class SynthesisInvoker implements MessageHandler<String> {
 					for (final HDLVariable hdlVariable : vars) {
 						if (hdlVariable.getContainer() instanceof HDLVariableDeclaration) {
 							HDLVariableDeclaration declaration = (HDLVariableDeclaration) hdlVariable.getContainer();
-							declaration = declaration.setVariables(HDLObject.asList(hdlVariable.setDefaultValue(null)));
-							stmnts.add(declaration);
+							if (declaration.getDirection() != HDLDirection.INOUT) {
+								declaration = declaration.setVariables(HDLObject.asList(hdlVariable.setDefaultValue(null)));
+								stmnts.add(declaration);
+							}
 							break;
 						}
 					}
@@ -295,15 +313,14 @@ public class SynthesisInvoker implements MessageHandler<String> {
 					stmnts.add(new HDLAssignment().setLeft(var).setRight(doNeg(hir, ps)));
 					break;
 				case INOUT:
-					stmnts.add(new HDLAssignment().setLeft(hir).setRight(doNeg(var, ps)));
-					stmnts.add(new HDLAssignment().setLeft(var).setRight(doNeg(hir, ps)));
+					stmnts.add(new HDLExport().setExportRef(hir));
 					break;
 				default:
 				}
 				break;
 			}
 		}
-		final HDLUnit container = new HDLUnit().setSimulation(false).setName("Synthesis" + setting.topModule + "Wrapper").setStatements(stmnts);
+		final HDLUnit container = new HDLUnit().setSimulation(false).setName(getWrapperName(setting.topModule)).setStatements(stmnts);
 		// System.out.println(container);
 		return container;
 	}
@@ -361,6 +378,15 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	private final ConnectionHelper connectionHelper;
+	private static final Map<String, ISynthesisTool> toolMap = Maps.newHashMap();
+	static {
+		final Collection<ISynthesisTool> tools = HDLCore.getAllImplementations(ISynthesisTool.class);
+		for (final ISynthesisTool tool : tools) {
+			for (final String vendor : tool.getSupportedFPGAVendors()) {
+				toolMap.put(vendor.toLowerCase(), tool);
+			}
+		}
+	}
 
 	public SynthesisInvoker(ConnectionHelper ch) {
 		this.connectionHelper = ch;
@@ -372,6 +398,10 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		final ObjectReader reader = JSONHelper.getReader(SynthesisSettings.class);
 		final SynthesisSettings contents = reader.readValue(new File(workspaceDir, path));
 		executor.execute(new SynJob(contents, path, workspaceDir, workspaceID));
+	}
+
+	public static String getWrapperName(final String topModule) {
+		return ("Synthesis" + topModule + "Wrapper").replace('.', '_');
 	}
 
 }

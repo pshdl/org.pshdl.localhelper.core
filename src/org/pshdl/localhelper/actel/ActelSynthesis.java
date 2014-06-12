@@ -32,24 +32,37 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Options;
+import org.pshdl.localhelper.ISynthesisTool;
+import org.pshdl.localhelper.JSONHelper;
+import org.pshdl.localhelper.SynthesisInvoker;
+import org.pshdl.localhelper.SynthesisInvoker.IProgressReporter;
 import org.pshdl.model.utils.internal.Helper;
+import org.pshdl.model.utils.services.IOutputProvider.MultiOption;
+import org.pshdl.rest.models.CompileInfo;
+import org.pshdl.rest.models.FileRecord;
+import org.pshdl.rest.models.ProgressFeedback.ProgressType;
 import org.pshdl.rest.models.settings.BoardSpecSettings;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.SynthesisSettings;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.collect.Maps;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
 
-public class ActelSynthesis {
+public class ActelSynthesis implements ISynthesisTool {
 	private static String SYN_VERSION = System.getProperty("SYN_VERSION", "H201303MSP1-1");
 	private static String LIBERO_PATH = System.getProperty("LIBERO_DIR", "c:\\Microsemi\\Libero_v11.2");
 	public static File SYNPLIFY = new File(LIBERO_PATH, "Synopsys\\synplify_" + SYN_VERSION + "\\win64\\mbin\\synplify.exe");
 	public static File ACTEL_TCLSH = new File(LIBERO_PATH, "Designer\\bin64\\acttclsh.exe");
+
+	public ActelSynthesis() {
+	}
 
 	public static boolean isSynthesisAvailable() {
 		System.out.println("Assuming SYN_VERSION to be: " + SYN_VERSION);
@@ -65,10 +78,8 @@ public class ActelSynthesis {
 		return true;
 	}
 
-	public static void createSynthesisFiles(String topModule, final ArrayList<File> vhdlFiles, final BoardSpecSettings board, final File synDir, final File workspace,
-			SynthesisSettings settings) throws IOException, FileNotFoundException {
-		synDir.mkdirs();
-		topModule = "Synthesis" + topModule + "Wrapper";
+	public static void createSynthesisFiles(String topModule, final Iterable<File> vhdlFiles, final BoardSpecSettings board, final File synDir, SynthesisSettings settings)
+			throws IOException, FileNotFoundException {
 		generateBatFile(synDir, SYN_VERSION, LIBERO_PATH);
 		generatePDCFile(synDir, topModule, settings, board, null, null);
 		generateActelSynFile(synDir, topModule, topModule + "_constr");
@@ -78,7 +89,7 @@ public class ActelSynthesis {
 		fos.close();
 	}
 
-	private static void generateSynPrjFile(File synDir, String topModule, List<File> vhdlFiles) throws IOException {
+	private static void generateSynPrjFile(File synDir, String topModule, Iterable<File> vhdlFiles) throws IOException {
 		final Map<String, String> options = Maps.newHashMap();
 		options.put("{TOPNAME}", topModule);
 		final StringBuilder sb = new StringBuilder();
@@ -120,5 +131,68 @@ public class ActelSynthesis {
 		options.put("{SYNPLIFY_PATH}", ActelSynthesis.SYNPLIFY.getAbsolutePath());
 		options.put("{ACTEL_PATH}", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath());
 		Files.write(Helper.processFile(ActelSynthesis.class, "synth.bat", options), new File(synDir, "synth.bat"));
+	}
+
+	@Override
+	public CompileInfo runSynthesis(String topModule, String wrappedModule, Iterable<File> vhdlFiles, File synDir, BoardSpecSettings board, SynthesisSettings settings,
+			IProgressReporter reporter, CommandLine cli) throws JsonProcessingException, IOException, InterruptedException {
+		ActelSynthesis.createSynthesisFiles(wrappedModule, vhdlFiles, board, synDir, settings);
+		reporter.reportProgress(ProgressType.progress, 0.1, "Invoking Synthesis");
+		final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
+		int timeOut = 5;
+		if (cli.hasOption("to")) {
+			timeOut = Integer.parseInt(cli.getOptionValue("to"));
+		}
+		final Process synProcess = SynthesisInvoker.runProcess(synDir, synProcessBuilder, timeOut, "synthesis", 0.2, reporter);
+		final CompileInfo info = new CompileInfo();
+		info.setCreated(System.currentTimeMillis());
+		info.setCreator(SynthesisInvoker.SYNTHESIS_CREATOR);
+		final String stdOutRelPath = "synthesis.log";
+		final File stdOut = new File(synDir, "stdout.log");
+		final ObjectWriter writer = JSONHelper.getWriter();
+		reportFile(reporter, info, writer, stdOut, stdOutRelPath);
+		if (synProcess.exitValue() != 0) {
+			final File srrLog = new File(synDir, wrappedModule + ".srr");
+			final String implRelPath = topModule + ".srr";
+			reportFile(reporter, info, writer, srrLog, implRelPath);
+			reporter.reportProgress(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
+		} else {
+			reporter.reportProgress(ProgressType.progress, 0.3, "Starting implementation");
+			final ProcessBuilder mapProcessBuilder = new ProcessBuilder(ActelSynthesis.ACTEL_TCLSH.getAbsolutePath(), "ActelSynthScript.tcl");
+			final Process mapProcess = SynthesisInvoker.runProcess(synDir, mapProcessBuilder, 2 * timeOut, "implementation", 0.4, reporter);
+			final File srrLog = new File(synDir, wrappedModule + ".srr");
+			final String implRelPath = topModule + ".srr";
+			reportFile(reporter, info, writer, srrLog, implRelPath);
+			if (mapProcess.exitValue() != 0) {
+				reporter.reportProgress(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + mapProcess.exitValue());
+			} else {
+				final File datFile = new File(synDir, wrappedModule + ".dat");
+				final String datRelPath = topModule + ".dat";
+				final FileRecord record = reporter.reportFile(info, datFile, datRelPath);
+				reporter.reportProgress(ProgressType.progress, 1.0, "Bitstream creation succeeded!");
+				reporter.reportProgress(ProgressType.done, null, writer.writeValueAsString(record));
+				return info;
+			}
+		}
+		return null;
+	}
+
+	public void reportFile(IProgressReporter reporter, final CompileInfo info, final ObjectWriter writer, final File srrLog, final String implRelPath) throws IOException,
+			JsonProcessingException {
+		FileRecord fileRecord;
+		fileRecord = reporter.reportFile(info, srrLog, implRelPath);
+		reporter.reportProgress(ProgressType.report, null, writer.writeValueAsString(fileRecord));
+	}
+
+	@Override
+	public String[] getSupportedFPGAVendors() {
+		return new String[] { "Actel", "MicroSemi" };
+	}
+
+	@Override
+	public MultiOption getOptions() {
+		final Options options = new Options();
+		options.addOption("to", "timeOut", true, "The maximum number of minutes the synthesis can take before it is cut off. Mapping can take twice as long. Default is [5]");
+		return new MultiOption("The actel/microsemi tools support the following options", null, options);
 	}
 }
