@@ -114,7 +114,7 @@ public class ActelSynthesis implements ISynthesisTool {
 		Files.write(string, pdcFile, StandardCharsets.UTF_8);
 		if (pdcFile.length() == 0) {
 			final File logFile = new File(synDir, "PDC_ERR_LOG.txt");
-			try (final PrintStream ps = new PrintStream(logFile)) {
+			try (final PrintStream ps = new PrintStream(logFile, "UTF-8")) {
 				System.err.println("The written PDC file: " + pdcFile + " turned out to be zero. This is unexpected. Writting log:" + logFile);
 				ps.println("Output String was: " + string);
 				ps.println("Clock: " + clockName + " Reset:" + rstName);

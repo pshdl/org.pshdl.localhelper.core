@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 import org.pshdl.localhelper.PSSyncCommandLine.Configuration;
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
@@ -90,11 +91,10 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
-				final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-				String line = null;
-				double progressCounter = progress;
-				final String absolutePath = synDir.getAbsolutePath();
-				try {
+				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+					String line = null;
+					double progressCounter = progress;
+					final String absolutePath = synDir.getAbsolutePath();
 					while ((line = reader.readLine()) != null) {
 						line = line.replace(absolutePath, "");
 						sb.append(line).append('\n');
@@ -105,6 +105,7 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 						System.out.println(line);
 					}
 				} catch (final IOException e) {
+					e.printStackTrace();
 				}
 			}
 		}, "OutputLogger").start();

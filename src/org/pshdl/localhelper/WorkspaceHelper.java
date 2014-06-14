@@ -174,7 +174,9 @@ public class WorkspaceHelper {
 							final String hash = Files.asByteSource(file).hash(Hashing.sha1()).toString();
 							if (hash.equalsIgnoreCase(record.hash)) {
 								System.out.println("WorkspaceHelper.FileMonitor.findMonitorFiles() Hash still fits, resetting modification stamp");
-								file.setLastModified(getModification(record));
+								if (!file.setLastModified(getModification(record))) {
+									listener.doLog(Severity.ERROR, "Failed to update time stamp on file:" + file);
+								}
 							} else {
 								ch.uploadFile(file, workspaceID, record.relPath);
 							}
@@ -244,7 +246,9 @@ public class WorkspaceHelper {
 				if (localFile.lastModified() > getModification(record)) {
 					listener.doLog(Severity.WARNING, "A file that existed locally is newer than a remotely deleted file:" + relPath);
 				} else {
-					localFile.delete();
+					if (!localFile.delete()) {
+						listener.doLog(Severity.ERROR, "Failed to delete file:" + localFile);
+					}
 					listener.fileOperation(FileOp.REMOVED, localFile);
 				}
 				final CompileInfo info = fi.info;
@@ -289,16 +293,16 @@ public class WorkspaceHelper {
 		ActelSynthesis.ACTEL_TCLSH = config.acttclsh;
 		ActelSynthesis.SYNPLIFY = config.synplify;
 		this.config = config;
+		if (listener != null) {
+			this.listener = listener;
+		} else {
+			this.listener = new ConsoleListener();
+		}
 		if (workspaceID != null) {
 			setWorkspaceID(workspaceID);
 		}
 		if (folder != null) {
 			setWorkspace(folder);
-		}
-		if (listener != null) {
-			this.listener = listener;
-		} else {
-			this.listener = new ConsoleListener();
 		}
 		this.ch = new ConnectionHelper(listener, this);
 		registerFileSyncHandlers();
@@ -399,7 +403,9 @@ public class WorkspaceHelper {
 	private void deleteFileAndDir(File srcGenDir, File oF) {
 		if (srcGenDir.getAbsolutePath().equals(oF.getAbsolutePath()))
 			return;
-		oF.delete();
+		if (!oF.delete()) {
+			listener.doLog(Severity.ERROR, "Failed to delete:" + oF);
+		}
 		if (oF.getParentFile().list().length == 0) {
 			deleteFileAndDir(srcGenDir, oF.getParentFile());
 		}
@@ -432,11 +438,16 @@ public class WorkspaceHelper {
 				if (fr.hash.equals(hash)) {
 					ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
 				} else {
-					localFile.setLastModified(lastModified);
+					if (!localFile.setLastModified(lastModified)) {
+						listener.doLog(Severity.ERROR, "Failed to updated modification timestamp on:" + localFile);
+					}
 				}
 			} else {
 				if (localLastModified != lastModified) {
-					localFile.renameTo(new File(localFile.getParent(), localFile.getName() + "_conflict" + localLastModified));
+					final String newFileName = localFile.getName() + "_conflict" + localLastModified;
+					if (!localFile.renameTo(new File(localFile.getParent(), newFileName))) {
+						listener.doLog(Severity.ERROR, "Failed to rename file:" + localFile + " to " + newFileName);
+					}
 					listener.doLog(Severity.WARNING, "The remote file was older than the local file. Created a backup of local file and used remote file");
 					ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
 				}
@@ -444,7 +455,9 @@ public class WorkspaceHelper {
 		} else {
 			final File parentFile = localFile.getParentFile();
 			if (!parentFile.exists()) {
-				parentFile.mkdirs();
+				if (!parentFile.mkdirs()) {
+					listener.doLog(Severity.ERROR, "Failed to create directory:" + parentFile);
+				}
 			}
 			ch.downloadFile(localFile, FileOp.ADDED, lastModified, uri);
 		}

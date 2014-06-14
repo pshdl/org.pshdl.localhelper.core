@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -205,7 +206,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
-				final BufferedReader reader = new BufferedReader(new InputStreamReader(is));
+				final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
 				String line = null;
 				double progressCounter = progress;
 				final String absolutePath = synDir.getAbsolutePath();

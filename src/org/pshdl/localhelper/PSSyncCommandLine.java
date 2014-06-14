@@ -98,7 +98,10 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 			config.workspaceDir = new File(".");
 		}
 		if (!config.workspaceDir.exists()) {
-			config.workspaceDir.mkdirs();
+			if (!config.workspaceDir.mkdirs()) {
+				System.out.println("Failed to create directory:" + config.workspaceDir);
+				return;
+			}
 		}
 
 		final PSSyncCommandLine listener = new PSSyncCommandLine();

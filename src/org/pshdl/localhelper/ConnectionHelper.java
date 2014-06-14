@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Formatter;
 import java.util.Random;
@@ -97,10 +98,12 @@ public class ConnectionHelper {
 				url = new URL("http://" + SERVER + name + "?plain=true");
 			}
 			System.out.println("WorkspaceHelper.downloadFile()" + url);
-			final InputStream os = url.openStream();
-			ByteStreams.copy(os, Files.newOutputStreamSupplier(localFile));
-			os.close();
-			localFile.setLastModified(lastModified);
+			try (final InputStream os = url.openStream()) {
+				ByteStreams.copy(os, Files.newOutputStreamSupplier(localFile));
+			}
+			if (!localFile.setLastModified(lastModified)) {
+				listener.doLog(Severity.ERROR, "Failed to update modification timestamp on file:" + localFile);
+			}
 			listener.fileOperation(op, localFile);
 		} catch (final Exception e) {
 			listener.doLog(e);
@@ -126,7 +129,7 @@ public class ConnectionHelper {
 		final Response response = client.target(getURL(wh.getWorkspaceID(), true)).path(clientID).request().post(Entity.entity(bytes, MediaType.APPLICATION_JSON));
 		final int status = response.getStatus();
 		if (status != 204) {
-			listener.doLog(Severity.ERROR, "Failed post message:" + new String(bytes) + " status was:" + status);
+			listener.doLog(Severity.ERROR, "Failed post message:" + new String(bytes, StandardCharsets.UTF_8) + " status was:" + status);
 		}
 	}
 
@@ -334,15 +337,15 @@ public class ConnectionHelper {
 	private static final Random r = new Random();
 
 	public void uploadFile(File file, String workspaceID, String name) throws IOException {
-		final FormDataMultiPart formDataMultiPart = createFormBody(file, name);
-		final Client client = createClient(false);
-		final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
-				.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
-		final int status = response.getStatus();
-		if (status != 201) {
-			listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status);
+		try (final FormDataMultiPart formDataMultiPart = createFormBody(file, name)) {
+			final Client client = createClient(false);
+			final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
+					.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
+			final int status = response.getStatus();
+			if (status != 201) {
+				listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status);
+			}
 		}
-
 	}
 
 	public void deleteFile(String workspaceID, String relPath) {
@@ -355,32 +358,33 @@ public class ConnectionHelper {
 	}
 
 	public void uploadDerivedFile(File file, String workspaceID, String name, CompileInfo ci, String compileInfoSrc) throws IOException {
-		final FormDataMultiPart formDataMultiPart = createFormBody(file, name);
-		formDataMultiPart.field("applicationID", "PSHDLLocalClient");
-		// Don't look at it! This is embarassing.. I promise I will implement it
-		// properly after the demo...
-		formDataMultiPart.field("challenge", Long.toHexString(r.nextLong()));
-		formDataMultiPart.field("signedChallenge", Long.toHexString(r.nextLong()));
-		formDataMultiPart.field("compileInfo", writer.writeValueAsString(ci));
-		formDataMultiPart.field("compileInfoSrc", compileInfoSrc);
-		final Client client = createClient(false);
-		final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
-				.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
-		final int status = response.getStatus();
-		if (status != 201) {
-			listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status + " " + response.readEntity(String.class));
+		try (final FormDataMultiPart formDataMultiPart = createFormBody(file, name)) {
+			formDataMultiPart.field("applicationID", "PSHDLLocalClient");
+			// Don't look at it! This is embarassing.. I promise I will
+			// implement it
+			// properly after the demo...
+			formDataMultiPart.field("challenge", Long.toHexString(r.nextLong()));
+			formDataMultiPart.field("signedChallenge", Long.toHexString(r.nextLong()));
+			formDataMultiPart.field("compileInfo", writer.writeValueAsString(ci));
+			formDataMultiPart.field("compileInfoSrc", compileInfoSrc);
+			final Client client = createClient(false);
+			final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
+					.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
+			final int status = response.getStatus();
+			if (status != 201) {
+				listener.doLog(Severity.ERROR, "Failed to upload file:" + file + " status was:" + status + " " + response.readEntity(String.class));
+			}
 		}
-
 	}
 
 	public FormDataMultiPart createFormBody(File file, String name) throws IOException {
+		final byte[] byteArray = Files.toByteArray(file);
 		final FormDataMultiPart formDataMultiPart = new FormDataMultiPart();
 		final FormDataContentDisposition dispo = FormDataContentDisposition//
 				.name("file")//
 				.fileName(name)//
 				.size(file.length())//
 				.modificationDate(new Date(file.lastModified())).build();
-		final byte[] byteArray = Files.toByteArray(file);
 		formDataMultiPart.bodyPart(new FormDataBodyPart(dispo, byteArray, MediaType.APPLICATION_OCTET_STREAM_TYPE));
 		formDataMultiPart.field("sha1", Hashing.sha1().hashBytes(byteArray).toString());
 		return formDataMultiPart;
