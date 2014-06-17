@@ -14,6 +14,7 @@ import org.pshdl.rest.models.settings.SynthesisSettings;
  * hooks directly into the synthesis Option of the PSHDLCompiler
  *
  * @author Karsten Becker
+ * @since v0.1.83
  *
  */
 public interface ISynthesisTool {
@@ -46,6 +47,8 @@ public interface ISynthesisTool {
 	 * @return <code>null</code> or a {@link CompileInfo} if the synthesis was
 	 *         successful
 	 * @throws Exception
+	 *
+	 * @since v0.1.83
 	 */
 	public CompileInfo runSynthesis(String topModule, String wrappedModule, Iterable<File> vhdlFiles, File synDir, BoardSpecSettings board, SynthesisSettings settings,
 			IProgressReporter reporter, CommandLine cli) throws Exception;
@@ -54,6 +57,8 @@ public interface ISynthesisTool {
 	 * Return the name of the vendors that are supported by this tool
 	 *
 	 * @return
+	 *
+	 * @since v0.1.83
 	 */
 	public String[] getSupportedFPGAVendors();
 
@@ -61,6 +66,17 @@ public interface ISynthesisTool {
 	 * Returns the supported command-line options of this tool
 	 *
 	 * @return
+	 *
+	 * @since v0.1.83
 	 */
 	public MultiOption getOptions();
+
+	/**
+	 * Checks whether the tools can be found
+	 *
+	 * @return
+	 *
+	 * @since v0.1.84
+	 */
+	public boolean isSynthesisAvailable();
 }

@@ -41,6 +41,7 @@ import org.pshdl.rest.models.FileRecord;
 import org.pshdl.rest.models.Message;
 import org.pshdl.rest.models.ProgressFeedback;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
+import org.pshdl.rest.models.RepoInfo;
 
 public class ConfigureInvoker implements MessageHandler<FileRecord> {
 
@@ -61,7 +62,7 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 	}
 
 	@Override
-	public void handle(Message<FileRecord> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+	public void handle(Message<FileRecord> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo repo) throws Exception {
 		final FileRecord record = WorkspaceHelper.getContent(msg, FileRecord.class);
 		final File datFile = new File(workspaceDir, record.relPath);
 		final String datAbsolutePath = datFile.getAbsolutePath();

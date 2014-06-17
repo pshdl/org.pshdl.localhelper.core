@@ -28,15 +28,12 @@ package org.pshdl.localhelper;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -46,6 +43,7 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.apache.commons.cli.CommandLine;
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.MessageHandler;
 import org.pshdl.model.HDLArgument;
@@ -67,19 +65,25 @@ import org.pshdl.model.HDLVariableDeclaration;
 import org.pshdl.model.HDLVariableDeclaration.HDLDirection;
 import org.pshdl.model.HDLVariableRef;
 import org.pshdl.model.extensions.FullNameExtension;
+import org.pshdl.model.parser.PSHDLParser;
 import org.pshdl.model.utils.HDLCore;
 import org.pshdl.model.utils.HDLQualifiedName;
 import org.pshdl.model.utils.HDLQuery;
+import org.pshdl.model.validation.Problem;
 import org.pshdl.rest.models.CompileInfo;
+import org.pshdl.rest.models.FileInfo;
 import org.pshdl.rest.models.FileRecord;
 import org.pshdl.rest.models.Message;
 import org.pshdl.rest.models.ProgressFeedback;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
+import org.pshdl.rest.models.RepoInfo;
 import org.pshdl.rest.models.settings.BoardSpecSettings;
 import org.pshdl.rest.models.settings.BoardSpecSettings.PinSpec;
 import org.pshdl.rest.models.settings.SynthesisSettings;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -92,39 +96,30 @@ public class SynthesisInvoker implements MessageHandler<String> {
 
 	public class SynJob implements Runnable, IProgressReporter {
 
-		private static final String SRC_GEN_SYNTHESIS = "src-gen/synthesis";
-
-		private final class VHDLFile implements FilenameFilter {
-			@Override
-			public boolean accept(File arg0, String arg1) {
-				if (arg1.endsWith(".vhdl"))
-					return true;
-				if (arg1.endsWith(".vhd"))
-					return true;
-				return false;
-			}
-		}
+		private static final String SRC_GEN_SYNTHESIS = "src-gen/synthesis/";
 
 		private final SynthesisSettings settings;
 		private final File workspaceDir;
 		private final String settingsFile;
 		private final String workspaceID;
+		private final RepoInfo repo;
 
-		public SynJob(SynthesisSettings settings, String settingsFile, File workspaceDir, String workspaceID) {
+		public SynJob(SynthesisSettings settings, String settingsFile, File workspaceDir, String workspaceID, RepoInfo repo) {
 			this.settings = settings;
 			this.settingsFile = settingsFile;
 			this.workspaceDir = workspaceDir;
 			this.workspaceID = workspaceID;
+			this.repo = repo;
 		}
 
 		@Override
 		public void run() {
-			final File[] vhdlFiles = workspaceDir.listFiles(new VHDLFile());
-			final ArrayList<File> files = Lists.newArrayList(vhdlFiles);
-			final File srcGen = new File(workspaceDir, "src-gen");
-			if (srcGen.exists()) {
-				final File[] list = srcGen.listFiles(new VHDLFile());
-				files.addAll(Arrays.asList(list));
+			final List<String> vhdlCompilerArgs = Lists.newArrayList();
+			final File vhdlOutputDir = new File(workspaceDir, "src-gen");
+			vhdlCompilerArgs.add("-o");
+			vhdlCompilerArgs.add(vhdlOutputDir.getAbsolutePath());
+			for (final FileInfo fileInfo : repo.getFiles()) {
+				vhdlCompilerArgs.add(new File(workspaceDir, fileInfo.record.relPath).getAbsolutePath());
 			}
 			try {
 				final File synDir = new File(workspaceDir, SRC_GEN_SYNTHESIS);
@@ -135,16 +130,15 @@ public class SynthesisInvoker implements MessageHandler<String> {
 				final File boardFile = new File(workspaceDir, settings.board);
 				final ObjectReader reader = JSONHelper.getReader(BoardSpecSettings.class);
 				final BoardSpecSettings board = reader.readValue(boardFile);
-				final ISynthesisTool synTool = toolMap.get(board.fpga.vendor.toLowerCase());
-				if (synTool == null)
-					throw new IllegalArgumentException("Did not find tool for vendor:" + board.fpga.vendor + ". Only know tools for " + toolMap.keySet());
-				final String topModule = settings.topModule;
-				final CompileInfo result = synTool.runSynthesis(topModule, getWrapperName(topModule), files, synDir, board, settings, this, null);
-				if (result != null) {
-					connectionHelper.postMessage(Message.COMP_SYNTHESIS, "CompileInfo[]", new CompileInfo[] { result });
-				}
+				final CommandLine cli = new SynthesisOutputProvider().getUsage().parse(vhdlCompilerArgs.toArray(new String[vhdlCompilerArgs.size()]));
+				SynthesisOutputProvider.runSynthesis(cli, settings, board, board.fpga.vendor.toLowerCase(), vhdlOutputDir, synDir, this);
 			} catch (final Throwable e) {
 				e.printStackTrace();
+				try {
+					sendMessage(ProgressType.error, null, "Exception occured: " + e.getMessage());
+				} catch (final IOException e1) {
+					e1.printStackTrace();
+				}
 			}
 		}
 
@@ -196,27 +190,52 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		FileRecord reportFile(CompileInfo info, File datFile, String datRelPath) throws IOException;
 	}
 
-	public static Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress,
+	/**
+	 * Run a process and report progress. Lines that start with #!> are directly
+	 * reported to the reporter and progress is incremented by incProgress
+	 *
+	 * @param workingDir
+	 *            the working directory in which the process will be running
+	 * @param processBuilder
+	 *            the process to run
+	 * @param timeOutMinutes
+	 *            the timeout after which the process will be killed
+	 * @param stage
+	 *            a human readable short description of what is done in this
+	 *            process ('synthesis', 'implementation'...)
+	 * @param progress
+	 *            the base progress to which the incprogress will be added upon
+	 *            each output line
+	 * @param incProgress
+	 *            the amount by which the progress is incremented on each output
+	 *            line
+	 * @param reporter
+	 *            the reporter to which progress, as well as console output is
+	 *            reported
+	 * @return the process that was either terminated or is terminated
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	public static Process runProcess(final File workingDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress, final double incProgress,
 			final IProgressReporter reporter) throws IOException, InterruptedException {
 		processBuilder.redirectErrorStream(true);
-		processBuilder.directory(synDir);
+		processBuilder.directory(workingDir);
 		final Process process = processBuilder.start();
 		final InputStream is = process.getInputStream();
 		final StringBuilder sb = new StringBuilder();
 		new Thread(new Runnable() {
 			@Override
 			public void run() {
-				final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
-				String line = null;
-				double progressCounter = progress;
-				final String absolutePath = synDir.getAbsolutePath();
-				try {
+				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+					String line = null;
+					double progressCounter = progress;
+					final String absolutePath = workingDir.getAbsolutePath();
 					while ((line = reader.readLine()) != null) {
 						line = line.replace(absolutePath, "");
 						sb.append(line).append('\n');
 						if (line.startsWith("#!>")) {
 							reporter.reportProgress(ProgressType.progress, progressCounter, line.substring(3));
-							progressCounter += 0.15;
+							progressCounter += incProgress;
 						}
 					}
 				} catch (final IOException e) {
@@ -236,6 +255,12 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		final ProgressFeedback synProgress = new ProgressFeedback(type, progress, System.currentTimeMillis(), message);
 		connectionHelper.postMessage(Message.SYNTHESIS_PROGRESS, "ProgressFeedback", synProgress);
 		System.out.println("SynthesisInvoker.SynJob.sendMessage()" + type + " " + message);
+	}
+
+	public static void reportFile(IProgressReporter reporter, final CompileInfo info, final ObjectWriter writer, final File srrLog, final String implRelPath) throws IOException,
+			JsonProcessingException {
+		final FileRecord fileRecord = reporter.reportFile(info, srrLog, implRelPath);
+		reporter.reportProgress(ProgressType.report, null, writer.writeValueAsString(fileRecord));
 	}
 
 	public static boolean waitOrTerminate(final Process synProcess, int waitTime) throws InterruptedException {
@@ -264,7 +289,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		final Map<String, String> overrideParameters = setting.overrideParameters;
 		if (overrideParameters != null) {
 			for (final Entry<String, String> e : overrideParameters.entrySet()) {
-				final HDLExpression expression = getExpression(e.getKey(), e.getValue());
+				final HDLExpression expression = extractExpression(e.getKey(), e.getValue());
 				if (expression != null) {
 					hii = hii.addArguments(new HDLArgument().setName(e.getKey()).setExpression(expression));
 				}
@@ -308,10 +333,10 @@ public class SynthesisInvoker implements MessageHandler<String> {
 				final HDLInterfaceRef hir = createInterfaceRef(new HDLInterfaceRef().setHIf(wrapperRef), ps.assignedSignal, wrapperRef);
 				switch (ps.direction) {
 				case IN:
-					stmnts.add(new HDLAssignment().setLeft(hir).setRight(doNeg(var, ps)));
+					stmnts.add(new HDLAssignment().setLeft(hir).setRight(invertVarRefIfSpecified(var, ps)));
 					break;
 				case OUT:
-					stmnts.add(new HDLAssignment().setLeft(var).setRight(doNeg(hir, ps)));
+					stmnts.add(new HDLAssignment().setLeft(var).setRight(invertVarRefIfSpecified(hir, ps)));
 					break;
 				case INOUT:
 					stmnts.add(new HDLExport().setExportRef(hir));
@@ -326,7 +351,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		return container;
 	}
 
-	private static HDLExpression doNeg(HDLVariableRef var, PinSpec ps) {
+	private static HDLExpression invertVarRefIfSpecified(HDLVariableRef var, PinSpec ps) {
 		if ((ps.attributes != null) && ps.attributes.containsKey(PinSpec.INVERT))
 			return new HDLManip().setType(HDLManipType.BIT_NEG).setTarget(var);
 		return var;
@@ -343,39 +368,25 @@ public class SynthesisInvoker implements MessageHandler<String> {
 			if (arrayM.start() < lastIndex) {
 				lastIndex = arrayM.start();
 			}
-			hir = (T) hir.addArray(getExpression(null, arrayM.group(1)));
+			hir = (T) hir.addArray(extractExpression(null, arrayM.group(1)));
 		}
 		final Matcher bitM = bit.matcher(assignedSignal);
 		if (bitM.find()) {
 			if (bitM.start() < lastIndex) {
 				lastIndex = bitM.start();
 			}
-			hir = (T) hir.setBits(HDLObject.asList(new HDLRange().setTo(getExpression(null, bitM.group(1)))));
+			hir = (T) hir.setBits(HDLObject.asList(new HDLRange().setTo(extractExpression(null, bitM.group(1)))));
 		}
 		hir = (T) hir.setVar(new HDLQualifiedName(assignedSignal.substring(0, lastIndex)));
 		return hir;
 	}
 
-	public static HDLExpression getExpression(final String paramName, final String value) {
-		HDLExpression exp = null;
-		if (value.charAt(0) == '"') {
-			exp = HDLLiteral.getString(value);
-		} else if (value.equalsIgnoreCase("true")) {
-			exp = HDLLiteral.getTrue();
-		} else if (value.equalsIgnoreCase("false")) {
-			exp = HDLLiteral.getFalse();
-		} else if (value.matches("[_\\d]+")) {
-			try {
-				final BigInteger bigVal = new BigInteger(value.trim());
-				exp = HDLLiteral.get(bigVal);
-			} catch (final Exception e1) {
-				throw new IllegalArgumentException("The value '" + value + "' of key '" + paramName + "' is not valid:" + e1.getMessage());
-			}
-		} else if (value.matches("\\D[\\.\\w]*")) {
-			exp = new HDLVariableRef().setVar(new HDLQualifiedName(value));
-		} else
-			throw new IllegalArgumentException("The value '" + value + "' of key '" + paramName + "' is not valid");
-		return exp;
+	public static HDLExpression extractExpression(final String paramName, final String value) {
+		final HashSet<Problem> problems = Sets.newHashSet();
+		final HDLExpression hdlExpression = PSHDLParser.parseExpressionString(value, problems);
+		if (!problems.isEmpty())
+			throw new IllegalArgumentException("The value '" + value + "' of key '" + paramName + "' is not valid:" + problems.toString());
+		return hdlExpression;
 	}
 
 	private final ConnectionHelper connectionHelper;
@@ -394,13 +405,19 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	@Override
-	public void handle(Message<String> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+	public void handle(Message<String> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo info) throws Exception {
 		final String path = WorkspaceHelper.getContent(msg, String.class);
 		final ObjectReader reader = JSONHelper.getReader(SynthesisSettings.class);
 		final SynthesisSettings contents = reader.readValue(new File(workspaceDir, path));
-		executor.execute(new SynJob(contents, path, workspaceDir, workspaceID));
+		executor.execute(new SynJob(contents, path, workspaceDir, workspaceID, info));
 	}
 
+	/**
+	 * Returns the name of the wrapped top module
+	 *
+	 * @param topModule
+	 * @return
+	 */
 	public static String getWrapperName(final String topModule) {
 		return ("Synthesis" + topModule + "Wrapper").replace('.', '_');
 	}

@@ -43,7 +43,7 @@ import com.google.common.collect.Maps;
 public class MicroBoardConfig {
 
 	public static BoardSpecSettings createMicroBoard() {
-		final FPGASpec fpga = new FPGASpec("Xilinx", "Spartan 6", "XC6SLX9-2CSG324C");
+		final FPGASpec fpga = new FPGASpec("Xilinx", "Spartan 6", "XC6SLX9-CSG324-2");
 		final PinSpecGroup clkRst = createResetClckGroup();
 		final PinSpecGroup dips = createGPIODip();
 		final PinSpecGroup leds = createGPIOLED();

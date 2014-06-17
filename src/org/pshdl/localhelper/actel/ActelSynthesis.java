@@ -64,7 +64,8 @@ public class ActelSynthesis implements ISynthesisTool {
 	public ActelSynthesis() {
 	}
 
-	public static boolean isSynthesisAvailable() {
+	@Override
+	public boolean isSynthesisAvailable() {
 		System.out.println("Assuming SYN_VERSION to be: " + SYN_VERSION);
 		System.out.println("Assuming LIBERO_PATH to be: " + LIBERO_PATH);
 		if (!SYNPLIFY.exists()) {
@@ -140,29 +141,32 @@ public class ActelSynthesis implements ISynthesisTool {
 		reporter.reportProgress(ProgressType.progress, 0.1, "Invoking Synthesis");
 		final ProcessBuilder synProcessBuilder = new ProcessBuilder(ActelSynthesis.SYNPLIFY.getAbsolutePath(), "-batch", "-licensetype", "synplifypro_actel", "syn.prj");
 		int timeOut = 5;
-		if (cli.hasOption("to")) {
+		if ((cli != null) && cli.hasOption("to")) {
 			timeOut = Integer.parseInt(cli.getOptionValue("to"));
+			if (timeOut < 0) {
+				timeOut = Integer.MAX_VALUE;
+			}
 		}
-		final Process synProcess = SynthesisInvoker.runProcess(synDir, synProcessBuilder, timeOut, "synthesis", 0.2, reporter);
+		final Process synProcess = SynthesisInvoker.runProcess(synDir, synProcessBuilder, timeOut, "synthesis", 0.2, 0.15, reporter);
 		final CompileInfo info = new CompileInfo();
 		info.setCreated(System.currentTimeMillis());
 		info.setCreator(SynthesisInvoker.SYNTHESIS_CREATOR);
 		final String stdOutRelPath = "synthesis.log";
 		final File stdOut = new File(synDir, "stdout.log");
 		final ObjectWriter writer = JSONHelper.getWriter();
-		reportFile(reporter, info, writer, stdOut, stdOutRelPath);
+		SynthesisInvoker.reportFile(reporter, info, writer, stdOut, stdOutRelPath);
 		if (synProcess.exitValue() != 0) {
 			final File srrLog = new File(synDir, wrappedModule + ".srr");
 			final String implRelPath = topModule + ".srr";
-			reportFile(reporter, info, writer, srrLog, implRelPath);
+			SynthesisInvoker.reportFile(reporter, info, writer, srrLog, implRelPath);
 			reporter.reportProgress(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
 		} else {
 			reporter.reportProgress(ProgressType.progress, 0.3, "Starting implementation");
 			final ProcessBuilder mapProcessBuilder = new ProcessBuilder(ActelSynthesis.ACTEL_TCLSH.getAbsolutePath(), "ActelSynthScript.tcl");
-			final Process mapProcess = SynthesisInvoker.runProcess(synDir, mapProcessBuilder, 2 * timeOut, "implementation", 0.4, reporter);
+			final Process mapProcess = SynthesisInvoker.runProcess(synDir, mapProcessBuilder, 2 * timeOut, "implementation", 0.4, 0.15, reporter);
 			final File srrLog = new File(synDir, wrappedModule + ".srr");
 			final String implRelPath = topModule + ".srr";
-			reportFile(reporter, info, writer, srrLog, implRelPath);
+			SynthesisInvoker.reportFile(reporter, info, writer, srrLog, implRelPath);
 			if (mapProcess.exitValue() != 0) {
 				reporter.reportProgress(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + mapProcess.exitValue());
 			} else {
@@ -177,13 +181,6 @@ public class ActelSynthesis implements ISynthesisTool {
 		return null;
 	}
 
-	public void reportFile(IProgressReporter reporter, final CompileInfo info, final ObjectWriter writer, final File srrLog, final String implRelPath) throws IOException,
-			JsonProcessingException {
-		FileRecord fileRecord;
-		fileRecord = reporter.reportFile(info, srrLog, implRelPath);
-		reporter.reportProgress(ProgressType.report, null, writer.writeValueAsString(fileRecord));
-	}
-
 	@Override
 	public String[] getSupportedFPGAVendors() {
 		return new String[] { "Actel", "MicroSemi" };
@@ -192,7 +189,8 @@ public class ActelSynthesis implements ISynthesisTool {
 	@Override
 	public MultiOption getOptions() {
 		final Options options = new Options();
-		options.addOption("to", "timeOut", true, "The maximum number of minutes the synthesis can take before it is cut off. Mapping can take twice as long. Default is [5]");
+		options.addOption("to", "timeOut", true,
+				"The maximum number of minutes the synthesis can take before it is cut off. Mapping can take twice as long. Default is [5]. Set to -1 to disable");
 		return new MultiOption("The actel/microsemi tools support the following options", null, options);
 	}
 }

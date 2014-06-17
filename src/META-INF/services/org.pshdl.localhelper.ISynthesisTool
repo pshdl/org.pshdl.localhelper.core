@@ -1,1 +1,2 @@
 org.pshdl.localhelper.actel.ActelSynthesis
+org.pshdl.localhelper.xilinx.XilinxSynthesis

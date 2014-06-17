@@ -163,6 +163,7 @@ public class ConnectionHelper {
 					clientID = getClientID(wid, client);
 					estimateServerDelta();
 					final RepoInfo repo = getRepoInfo(wid, client);
+					wh.handleRepoInfo(repo);
 					for (final FileInfo fi : repo.getFiles()) {
 						wh.handleFileInfo(fi);
 					}

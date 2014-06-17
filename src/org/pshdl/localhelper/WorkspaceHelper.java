@@ -29,6 +29,8 @@ package org.pshdl.localhelper;
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,10 +38,12 @@ import java.util.Set;
 import org.pshdl.localhelper.ConnectionHelper.Status;
 import org.pshdl.localhelper.PSSyncCommandLine.Configuration;
 import org.pshdl.localhelper.actel.ActelSynthesis;
+import org.pshdl.model.utils.HDLCore;
 import org.pshdl.rest.models.CompileInfo;
 import org.pshdl.rest.models.FileInfo;
 import org.pshdl.rest.models.FileRecord;
 import org.pshdl.rest.models.Message;
+import org.pshdl.rest.models.RepoInfo;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -93,7 +97,7 @@ public class WorkspaceHelper {
 		}
 
 		@Override
-		public void handle(Message<Void> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+		public void handle(Message<Void> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo repo) throws Exception {
 			doPost();
 
 		}
@@ -219,13 +223,13 @@ public class WorkspaceHelper {
 	}
 
 	public static interface MessageHandler<T> {
-		public void handle(Message<T> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception;
+		public void handle(Message<T> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo info) throws Exception;
 	}
 
 	public class FileInfoArrayHandler implements MessageHandler<FileInfo[]> {
 
 		@Override
-		public void handle(Message<FileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+		public void handle(Message<FileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo info) throws Exception {
 			final FileInfo[] readValues = getContent(msg, FileInfo[].class);
 			for (final FileInfo fi : readValues) {
 				handleFileInfo(fi);
@@ -234,10 +238,19 @@ public class WorkspaceHelper {
 
 	}
 
+	public class RepoInfoHandler implements MessageHandler<RepoInfo> {
+
+		@Override
+		public void handle(Message<RepoInfo> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo info) throws Exception {
+			repo = getContent(msg, RepoInfo.class);
+		}
+
+	}
+
 	public class FileInfoDeleteHandler implements MessageHandler<FileInfo> {
 
 		@Override
-		public void handle(Message<FileInfo> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+		public void handle(Message<FileInfo> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo repo) throws Exception {
 			final FileInfo fi = getContent(msg, FileInfo.class);
 			final FileRecord record = fi.record;
 			final String relPath = record.relPath;
@@ -258,7 +271,12 @@ public class WorkspaceHelper {
 			} else {
 				listener.doLog(Severity.WARNING, "A file that existed remotely but not locally has been deleted:" + relPath);
 			}
-
+			for (final Iterator<FileInfo> iterator = repo.getFiles().iterator(); iterator.hasNext();) {
+				final FileInfo repoFI = iterator.next();
+				if (repoFI.record.relPath.equals(relPath)) {
+					iterator.remove();
+				}
+			}
 		}
 
 	}
@@ -266,7 +284,7 @@ public class WorkspaceHelper {
 	public class CompileContainerHandler implements MessageHandler<CompileInfo[]> {
 
 		@Override
-		public void handle(Message<CompileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID) throws Exception {
+		public void handle(Message<CompileInfo[]> msg, IWorkspaceListener listener, File workspaceDir, String workspaceID, RepoInfo repo) throws Exception {
 			final CompileInfo[] cc = getContent(msg, CompileInfo[].class);
 			for (final CompileInfo ci : cc) {
 				handleCompileInfo(ci);
@@ -288,6 +306,7 @@ public class WorkspaceHelper {
 	protected Map<String, FileInfo> knownFiles = Maps.newHashMap();
 	private final Configuration config;
 	private ServiceAdvertiser psa;
+	private RepoInfo repo;
 
 	public WorkspaceHelper(IWorkspaceListener listener, String workspaceID, String folder, Configuration config) {
 		ActelSynthesis.ACTEL_TCLSH = config.acttclsh;
@@ -313,11 +332,18 @@ public class WorkspaceHelper {
 		handlerMap.put(Message.WORK_UPDATED, new FileInfoArrayHandler());
 		handlerMap.put(Message.WORK_DELETED, new FileInfoDeleteHandler());
 		handlerMap.put(Message.COMPILER, new CompileContainerHandler());
+		handlerMap.put(Message.WORK_CREATED_WORKSPACE, new RepoInfoHandler());
 		updateServices();
 	}
 
 	public void updateServices() {
-		final boolean synthesisAvailable = ActelSynthesis.isSynthesisAvailable();
+		boolean synthesisAvailable = false;
+		final Collection<ISynthesisTool> tools = HDLCore.getAllImplementations(ISynthesisTool.class);
+		for (final ISynthesisTool synthesisTool : tools) {
+			if (synthesisTool.isSynthesisAvailable()) {
+				synthesisAvailable = true;
+			}
+		}
 		final boolean hasBoard = config.comPort != null;
 		psa = new ServiceAdvertiser(synthesisAvailable, hasBoard);
 		handlerMap.put(Message.CLIENT_CONNECTED, psa);
@@ -383,7 +409,7 @@ public class WorkspaceHelper {
 			final MessageHandler<T> handler = (MessageHandler<T>) handlerMap.get(newSubject);
 			try {
 				if (handler != null) {
-					handler.handle(message, listener, root, workspaceID);
+					handler.handle(message, listener, root, workspaceID, repo);
 				}
 			} catch (final Exception e) {
 				listener.doLog(e);
@@ -413,10 +439,30 @@ public class WorkspaceHelper {
 
 	public void handleFileInfo(final FileInfo fi) throws IOException {
 		handleFileUpdate(fi.record);
+		updateRepoInfo(fi);
 		knownFiles.put(fi.record.relPath, fi);
 		final CompileInfo compileInfo = fi.info;
 		if (compileInfo != null) {
 			handleCompileInfo(compileInfo);
+		}
+	}
+
+	public void updateRepoInfo(final FileInfo remoteFileInfo) {
+		if (repo == null)
+			return;
+		final Set<FileInfo> repoFiles = repo.getFiles();
+		boolean found = false;
+		for (final Iterator<FileInfo> iterator = repoFiles.iterator(); iterator.hasNext();) {
+			final FileInfo localFileInfo = iterator.next();
+			if (localFileInfo.record.relPath.equals(remoteFileInfo.record.relPath)) {
+				found = true;
+				if (remoteFileInfo != localFileInfo) {
+					iterator.remove();
+				}
+			}
+		}
+		if (!found) {
+			repoFiles.add(remoteFileInfo);
 		}
 	}
 
@@ -509,6 +555,10 @@ public class WorkspaceHelper {
 
 	public String makeRelative(File localFile) {
 		return root.toURI().relativize(localFile.toURI()).toString();
+	}
+
+	public void handleRepoInfo(RepoInfo info) {
+		this.repo = info;
 	}
 
 }

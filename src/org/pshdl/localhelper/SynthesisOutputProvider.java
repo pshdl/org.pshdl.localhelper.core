@@ -1,7 +1,11 @@
 package org.pshdl.localhelper;
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -29,6 +33,7 @@ import org.pshdl.rest.models.settings.SynthesisSettings;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.hash.Hashing;
+import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
 
 public class SynthesisOutputProvider implements IOutputProvider, IProgressReporter {
@@ -45,6 +50,9 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 					options.add(option);
 				}
 			}
+		}
+		try (PStoVHDLCompiler pStoVHDLCompiler = new PStoVHDLCompiler()) {
+			options.add(pStoVHDLCompiler.getUsage());
 		}
 		subs = options.toArray(new MultiOption[options.size()]);
 	}
@@ -85,14 +93,19 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 		if (cli.hasOption('t')) {
 			vendor = cli.getOptionValue('t');
 		}
-		final ISynthesisTool tool = toolMap.get(vendor);
-		if (tool == null)
-			return "The tool:" + vendor + " is not known. Known tools are:" + toolMap.keySet();
 		final File vhdlOutputDir = PStoVHDLCompiler.getOutputDir(cli);
 		File outputDir = new File(vhdlOutputDir, "synthesis");
 		if (cli.hasOption("synDir")) {
 			outputDir = new File(cli.getOptionValue("synDir"));
 		}
+		return runSynthesis(cli, settings, board, vendor, vhdlOutputDir, outputDir, this);
+	}
+
+	public static String runSynthesis(CommandLine cli, final SynthesisSettings settings, final BoardSpecSettings board, String vendor, final File vhdlOutputDir, File outputDir,
+			IProgressReporter reporter) throws IOException, FileNotFoundException, Exception {
+		final ISynthesisTool tool = toolMap.get(vendor);
+		if (tool == null)
+			return "The tool:" + vendor + " is not known. Known tools are:" + toolMap.keySet();
 		if (!outputDir.exists()) {
 			if (!outputDir.mkdirs())
 				return "Failed to create output directory:" + outputDir.getAbsolutePath();
@@ -128,7 +141,12 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 				vhdlFiles.add(srcFile);
 			}
 			vhdlFiles.add(new File(outputDir, wrappedModule + ".vhdl"));
-			tool.runSynthesis(topModule, wrappedModule, vhdlFiles, outputDir, board, settings, this, cli);
+			final File pshdl_pkg = new File(outputDir, "pshdl_pkg.vhd");
+			try (OutputStream os = new FileOutputStream(pshdl_pkg); InputStream is = WorkspaceHelper.class.getResourceAsStream("/pshdl_pkg.vhd")) {
+				ByteStreams.copy(is, os);
+			}
+			vhdlFiles.add(0, pshdl_pkg);
+			tool.runSynthesis(topModule, wrappedModule, vhdlFiles, outputDir, board, settings, reporter, cli);
 		}
 		return null;
 	}
