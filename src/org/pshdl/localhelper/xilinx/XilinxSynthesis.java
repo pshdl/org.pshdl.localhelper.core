@@ -27,6 +27,7 @@
 package org.pshdl.localhelper.xilinx;
 
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.PrintStream;
 
@@ -39,6 +40,7 @@ import org.pshdl.localhelper.SynthesisInvoker.IProgressReporter;
 import org.pshdl.model.utils.services.IOutputProvider.MultiOption;
 import org.pshdl.rest.models.CompileInfo;
 import org.pshdl.rest.models.FileRecord;
+import org.pshdl.rest.models.FileType;
 import org.pshdl.rest.models.ProgressFeedback.ProgressType;
 import org.pshdl.rest.models.settings.BoardSpecSettings;
 import org.pshdl.rest.models.settings.SynthesisSettings;
@@ -52,15 +54,27 @@ public class XilinxSynthesis implements ISynthesisTool {
 	public static final File XILINX_XFLOW = new File(System.getProperty("XILINX_XFLOW", "C:\\Xilinx\\14.5\\ISE_DS\\ISE\\bin\\nt64\\xflow.exe"));
 
 	@Override
-	public CompileInfo runSynthesis(String topModule, String wrappedModule, Iterable<File> vhdlFiles, File synDir, BoardSpecSettings board, SynthesisSettings settings,
+	public CompileInfo runSynthesis(String topModule, final String wrappedModule, Iterable<File> vhdlFiles, File synDir, BoardSpecSettings board, SynthesisSettings settings,
 			IProgressReporter reporter, CommandLine cli) throws Exception {
-		// -p XC6SLX9-CSG324-2 -synth xst_mixed.opt -implement balanced.opt
-		// -config bitgen.opt de_tuhh_ict_AudioCodecSCLBased.prj
 		int timeOut = 5;
 		if ((cli != null) && cli.hasOption("to")) {
 			timeOut = Integer.parseInt(cli.getOptionValue("to"));
 			if (timeOut < 0) {
 				timeOut = Integer.MAX_VALUE;
+			}
+		}
+		final File[] oldFiles = synDir.listFiles(new FilenameFilter() {
+
+			@Override
+			public boolean accept(File dir, String name) {
+				if (FileType.of(name) == FileType.vhdl)
+					return false;
+				return name.startsWith(wrappedModule);
+			}
+		});
+		if (oldFiles != null) {
+			for (final File oldFile : oldFiles) {
+				java.nio.file.Files.delete(oldFile.toPath());
 			}
 		}
 		reporter.reportProgress(ProgressType.progress, 0.1, "Invoking Synthesis");
