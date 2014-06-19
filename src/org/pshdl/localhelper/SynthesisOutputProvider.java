@@ -146,7 +146,10 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 				ByteStreams.copy(is, os);
 			}
 			vhdlFiles.add(0, pshdl_pkg);
-			tool.runSynthesis(topModule, wrappedModule, vhdlFiles, outputDir, board, settings, reporter, cli);
+			final CompileInfo compileInfo = tool.runSynthesis(topModule, wrappedModule, vhdlFiles, outputDir, board, settings, reporter, cli);
+			if (compileInfo != null) {
+				reporter.reportResult(compileInfo);
+			}
 		}
 		return null;
 	}
@@ -170,5 +173,10 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 		record.hash = Files.asByteSource(datFile).hash(Hashing.sha1()).toString();
 		info.getFiles().add(record);
 		return record;
+	}
+
+	@Override
+	public void reportResult(CompileInfo compileInfo) throws IOException {
+
 	}
 }

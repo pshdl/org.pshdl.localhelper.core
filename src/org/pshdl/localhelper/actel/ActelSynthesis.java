@@ -178,7 +178,7 @@ public class ActelSynthesis implements ISynthesisTool {
 				return info;
 			}
 		}
-		return null;
+		return info;
 	}
 
 	@Override

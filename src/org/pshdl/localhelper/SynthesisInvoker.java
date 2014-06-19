@@ -157,6 +157,12 @@ public class SynthesisInvoker implements MessageHandler<String> {
 			sendMessage(type, progress, message);
 		}
 
+		@Override
+		public void reportResult(CompileInfo compileInfo) throws IOException {
+			final ObjectWriter writer = JSONHelper.getWriter();
+			connectionHelper.postMessage(Message.COMP_SYNTHESIS, "CompileInfo[]", writer.writeValueAsString(new CompileInfo[] { compileInfo }));
+		}
+
 	}
 
 	public static interface IProgressReporter {
@@ -188,6 +194,14 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		 * @throws IOException
 		 */
 		FileRecord reportFile(CompileInfo info, File datFile, String datRelPath) throws IOException;
+
+		/**
+		 * When the synthesis finishes, the compileInfo is reported
+		 *
+		 * @param compileInfo
+		 * @throws IOException
+		 */
+		void reportResult(CompileInfo compileInfo) throws IOException;
 	}
 
 	/**

@@ -41,6 +41,7 @@ import org.pshdl.localhelper.WorkspaceHelper.FileOp;
 import org.pshdl.localhelper.WorkspaceHelper.IWorkspaceListener;
 import org.pshdl.localhelper.WorkspaceHelper.Severity;
 import org.pshdl.localhelper.actel.ActelSynthesis;
+import org.pshdl.localhelper.xilinx.XilinxSynthesis;
 import org.pshdl.rest.models.Message;
 
 import com.google.common.base.Splitter;
@@ -55,6 +56,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		public File synplify;
 		public File acttclsh;
 		public File progammer;
+		public File xflow;
 
 		public void loadFromPref(Preferences pref) {
 			workspaceID = pref.get("workspaceID", null);
@@ -62,6 +64,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 			workspaceDir = new File(pref.get("workspaceDir", "."));
 			synplify = new File(pref.get("synplify", ActelSynthesis.SYNPLIFY.getAbsolutePath()));
 			acttclsh = new File(pref.get("acttclsh", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath()));
+			xflow = new File(pref.get("xflow", XilinxSynthesis.XILINX_XFLOW.getAbsolutePath()));
 			guessProgrammer(this, pref.get("progammer", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath()));
 		}
 
@@ -80,6 +83,9 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 			}
 			if (acttclsh != null) {
 				pref.put("acttclsh", acttclsh.getAbsolutePath());
+			}
+			if (xflow != null) {
+				pref.put("xflow", xflow.getAbsolutePath());
 			}
 			if (progammer != null) {
 				pref.put("progammer", progammer.getAbsolutePath());
@@ -130,6 +136,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		options.addOption(new Option("d", "dir", true, "Directory to use for the synced files. The default is the current directory"));
 		options.addOption(new Option("syn", "synplify", true, "Absolute path to the synplify executable." + printDefault(ActelSynthesis.SYNPLIFY)));
 		options.addOption(new Option("atcl", "acttclsh", true, "Absolute path to the Actel TCL shell (acttclsh executable)." + printDefault(ActelSynthesis.ACTEL_TCLSH)));
+		options.addOption(new Option("xflow", "xflow", true, "Absolute path to the xflow tool." + printDefault(XilinxSynthesis.XILINX_XFLOW)));
 		options.addOption(new Option("com", "comport", true, "The name or path to the serial port"));
 		options.addOption(new Option("prg", "programmer", true, "The absolute path to the fpga_programmer executable." + printDefault(ConfigureInvoker.FPGA_PROGRAMMER)));
 		options.addOption(new Option("h", "help", false, "Prints this help"));
@@ -140,8 +147,8 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		return " Default is [" + executable + "]" + isFound(executable);
 	}
 
-	private static String isFound(File synplify) {
-		if (synplify.exists() && synplify.canExecute())
+	private static String isFound(File executable) {
+		if (executable.exists() && executable.canExecute())
 			return " (found)";
 		return " (not found)";
 	}
@@ -193,6 +200,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		}
 		config.synplify = new File(cli.getOptionValue("syn", ActelSynthesis.SYNPLIFY.getAbsolutePath()));
 		config.acttclsh = new File(cli.getOptionValue("atcl", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath()));
+		config.xflow = new File(cli.getOptionValue("xflow", XilinxSynthesis.XILINX_XFLOW.getAbsolutePath()));
 		final String optionValue = cli.getOptionValue("prg", ConfigureInvoker.FPGA_PROGRAMMER.getAbsolutePath());
 		guessProgrammer(config, optionValue);
 		config.comPort = cli.getOptionValue("com", null);

@@ -475,27 +475,28 @@ public class WorkspaceHelper {
 
 	public void handleFileUpdate(FileRecord fr) throws IOException {
 		final File localFile = new File(root, fr.relPath);
-		final long lastModified = getModification(fr);
+		final long remoteLastModified = getModification(fr);
 		final String uri = fr.fileURI;
 		if (localFile.exists()) {
 			final long localLastModified = localFile.lastModified();
-			if ((localLastModified < lastModified) || (lastModified == 0)) {
-				final String hash = Files.asByteSource(localFile).hash(Hashing.sha1()).toString();
-				if (fr.hash.equals(hash)) {
-					ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
-				} else {
-					if (!localFile.setLastModified(lastModified)) {
-						listener.doLog(Severity.ERROR, "Failed to updated modification timestamp on:" + localFile);
-					}
+			final String localHash = Files.asByteSource(localFile).hash(Hashing.sha1()).toString();
+			if (fr.hash.equalsIgnoreCase(localHash)) {
+				if (!localFile.setLastModified(remoteLastModified)) {
+					listener.doLog(Severity.ERROR, "Failed to updated modification timestamp on:" + localFile);
 				}
 			} else {
-				if (localLastModified != lastModified) {
+				if ((localLastModified < remoteLastModified) || (remoteLastModified == 0)) {
+					ch.downloadFile(localFile, FileOp.UPDATED, remoteLastModified, uri);
+				} else {
 					final String newFileName = localFile.getName() + "_conflict" + localLastModified;
 					if (!localFile.renameTo(new File(localFile.getParent(), newFileName))) {
 						listener.doLog(Severity.ERROR, "Failed to rename file:" + localFile + " to " + newFileName);
 					}
 					listener.doLog(Severity.WARNING, "The remote file was older than the local file. Created a backup of local file and used remote file");
-					ch.downloadFile(localFile, FileOp.UPDATED, lastModified, uri);
+					ch.downloadFile(localFile, FileOp.UPDATED, remoteLastModified, uri);
+					final String newlocalHash = Files.asByteSource(localFile).hash(Hashing.sha1()).toString();
+					System.out.println(newlocalHash);
+					System.out.println(localHash);
 				}
 			}
 		} else {
@@ -505,7 +506,7 @@ public class WorkspaceHelper {
 					listener.doLog(Severity.ERROR, "Failed to create directory:" + parentFile);
 				}
 			}
-			ch.downloadFile(localFile, FileOp.ADDED, lastModified, uri);
+			ch.downloadFile(localFile, FileOp.ADDED, remoteLastModified, uri);
 		}
 	}
 

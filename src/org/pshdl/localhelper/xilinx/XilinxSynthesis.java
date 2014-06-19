@@ -51,7 +51,8 @@ import com.google.common.io.Files;
 
 public class XilinxSynthesis implements ISynthesisTool {
 
-	public static final File XILINX_XFLOW = new File(System.getProperty("XILINX_XFLOW", "C:\\Xilinx\\14.5\\ISE_DS\\ISE\\bin\\nt64\\xflow.exe"));
+	public static final String XILINX_VERSION = System.getProperty("XILINX_VERSION", "14.5");
+	public static final File XILINX_XFLOW = new File(System.getProperty("XILINX_XFLOW", "C:\\Xilinx\\" + XILINX_VERSION + "\\ISE_DS\\ISE\\bin\\nt64\\xflow.exe"));
 
 	@Override
 	public CompileInfo runSynthesis(String topModule, final String wrappedModule, Iterable<File> vhdlFiles, File synDir, BoardSpecSettings board, SynthesisSettings settings,
@@ -125,7 +126,7 @@ public class XilinxSynthesis implements ISynthesisTool {
 				}
 			}
 		}
-		return null;
+		return info;
 	}
 
 	public void sendXFlowLog(File synDir, IProgressReporter reporter, final CompileInfo info, final String synLog) throws IOException, JsonProcessingException {
@@ -153,7 +154,10 @@ public class XilinxSynthesis implements ISynthesisTool {
 	public boolean isSynthesisAvailable() {
 		System.out.println("Assuming Xilinx xflow tool to be at:" + XILINX_XFLOW);
 		if (!XILINX_XFLOW.exists()) {
-			System.err.println("File " + XILINX_XFLOW + " does not exist");
+			System.err
+					.println("File "
+							+ XILINX_XFLOW
+							+ " does not exist. You can specify it's location with the property XILINX_XFLOW or if Xilinx is installed in the default c:\\xilinx directory with XILINX_VERSION");
 			return false;
 		}
 		return true;
