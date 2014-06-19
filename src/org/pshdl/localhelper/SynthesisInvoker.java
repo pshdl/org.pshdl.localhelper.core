@@ -272,7 +272,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	public static void reportFile(IProgressReporter reporter, final CompileInfo info, final ObjectWriter writer, final File srrLog, final String implRelPath) throws IOException,
-			JsonProcessingException {
+	JsonProcessingException {
 		final FileRecord fileRecord = reporter.reportFile(info, srrLog, implRelPath);
 		reporter.reportProgress(ProgressType.report, null, writer.writeValueAsString(fileRecord));
 	}

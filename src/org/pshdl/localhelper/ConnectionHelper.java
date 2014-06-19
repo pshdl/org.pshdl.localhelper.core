@@ -242,7 +242,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 *
+		 * 
 		 * @see java.lang.Object#hashCode()
 		 */
 		@Override
@@ -256,7 +256,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 *
+		 * 
 		 * @see java.lang.Object#equals(java.lang.Object)
 		 */
 		@Override
