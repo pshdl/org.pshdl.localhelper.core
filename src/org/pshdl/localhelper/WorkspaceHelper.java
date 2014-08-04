@@ -323,7 +323,7 @@ public class WorkspaceHelper {
 		if (folder != null) {
 			setWorkspace(folder);
 		}
-		this.ch = new ConnectionHelper(listener, this);
+		this.ch = new ConnectionHelper(listener, this, config.secure);
 		registerFileSyncHandlers();
 	}
 

@@ -57,6 +57,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 		public File acttclsh;
 		public File progammer;
 		public File xflow;
+		public boolean secure;
 
 		public void loadFromPref(Preferences pref) {
 			workspaceID = pref.get("workspaceID", null);
@@ -133,6 +134,7 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 	public static Options generateOptions() {
 		final Options options = new Options();
 		options.addOption(new Option("w", "workspaceID", true, "The workspace ID to which the client should attach"));
+		options.addOption(new Option("s", "secure", false, "Connect with HTTPS"));
 		options.addOption(new Option("d", "dir", true, "Directory to use for the synced files. The default is the current directory"));
 		options.addOption(new Option("syn", "synplify", true, "Absolute path to the synplify executable." + printDefault(ActelSynthesis.SYNPLIFY)));
 		options.addOption(new Option("atcl", "acttclsh", true, "Absolute path to the Actel TCL shell (acttclsh executable)." + printDefault(ActelSynthesis.ACTEL_TCLSH)));
@@ -193,6 +195,9 @@ public class PSSyncCommandLine implements IWorkspaceListener {
 			printUsage();
 			System.exit(1);
 			return null;
+		}
+		if (cli.hasOption('s')) {
+			config.secure = true;
 		}
 		config.workspaceID = cli.getOptionValue('w', null);
 		if (cli.hasOption('d')) {

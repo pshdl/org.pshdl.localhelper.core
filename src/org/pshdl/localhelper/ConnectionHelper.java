@@ -75,6 +75,7 @@ public class ConnectionHelper {
 	private final WorkspaceHelper wh;
 	protected Client client;
 	protected String clientID;
+	private final boolean secure;
 	private static final ObjectReader repoReader = JSONHelper.getReader(RepoInfo.class);
 	private static final ObjectReader messageReader = JSONHelper.getReader(Message.class);
 	private static final ObjectWriter writer = JSONHelper.getWriter();
@@ -83,19 +84,20 @@ public class ConnectionHelper {
 		CONNECTING, CONNECTED, CLOSED, RECONNECT, ERROR
 	}
 
-	public ConnectionHelper(IWorkspaceListener listener, WorkspaceHelper wh) {
+	public ConnectionHelper(IWorkspaceListener listener, WorkspaceHelper wh, boolean secure) {
 		super();
 		this.listener = listener;
 		this.wh = wh;
+		this.secure = secure;
 	}
 
 	public void downloadFile(File localFile, FileOp op, long lastModified, String name) {
 		try {
 			URL url;
 			if (name.charAt(0) != '/') {
-				url = new URL(getURL(wh.getWorkspaceID(), false) + "/" + name + "?plain=true");
+				url = new URL(getURL(wh.getWorkspaceID(), false, secure) + "/" + name + "?plain=true");
 			} else {
-				url = new URL("http://" + SERVER + name + "?plain=true");
+				url = new URL((secure ? "https://" : "http://") + SERVER + name + "?plain=true");
 			}
 			System.out.println("WorkspaceHelper.downloadFile()" + url);
 			try (final InputStream os = url.openStream()) {
@@ -126,7 +128,7 @@ public class ConnectionHelper {
 		final Message<T> message = new Message<>(type, subject, content, clientID);
 		final byte[] bytes = writer.writeValueAsBytes(message);
 		final Client client = createClient(false);
-		final Response response = client.target(getURL(wh.getWorkspaceID(), true)).path(clientID).request().post(Entity.entity(bytes, MediaType.APPLICATION_JSON));
+		final Response response = client.target(getURL(wh.getWorkspaceID(), true, secure)).path(clientID).request().post(Entity.entity(bytes, MediaType.APPLICATION_JSON));
 		final int status = response.getStatus();
 		if (status != 204) {
 			listener.doLog(Severity.ERROR, "Failed post message:" + new String(bytes, StandardCharsets.UTF_8) + " status was:" + status);
@@ -139,10 +141,15 @@ public class ConnectionHelper {
 		return eventSource.isOpen();
 	}
 
-	public String getURL(String workspaceID, boolean streaming) {
-		if (streaming)
-			return "http://" + SERVER + "/api/v0.1/streaming/workspace/" + workspaceID.toUpperCase();
-		return "http://" + SERVER + "/api/v0.1/workspace/" + workspaceID.toUpperCase();
+	public String getURL(String workspaceID, boolean streaming, boolean secure) {
+		final String protocol = secure ? "https://" : "http://";
+		final String result;
+		if (streaming) {
+			result = protocol + SERVER + "/api/v0.1/streaming/workspace/" + workspaceID.toUpperCase();
+		} else {
+			result = protocol + SERVER + "/api/v0.1/workspace/" + workspaceID.toUpperCase();
+		}
+		return result;
 
 	}
 
@@ -242,7 +249,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 * 
+		 *
 		 * @see java.lang.Object#hashCode()
 		 */
 		@Override
@@ -256,7 +263,7 @@ public class ConnectionHelper {
 
 		/*
 		 * (non-Javadoc)
-		 * 
+		 *
 		 * @see java.lang.Object#equals(java.lang.Object)
 		 */
 		@Override
@@ -288,7 +295,7 @@ public class ConnectionHelper {
 		if (client == null) {
 			client = createClient(true);
 		}
-		final WebTarget path = client.target(getURL(wid, true)).path(clientID).path("sse");
+		final WebTarget path = client.target(getURL(wid, true, secure)).path(clientID).path("sse");
 		System.out.println("WorkspaceHelper.connectToStream()" + path.getUri());
 		try {
 			eventSource = new EventSource(path) {
@@ -324,14 +331,14 @@ public class ConnectionHelper {
 	}
 
 	public RepoInfo getRepoInfo(final String wid, final Client client) throws IOException, JsonProcessingException {
-		final String url = getURL(wid, false);
+		final String url = getURL(wid, false, secure);
 		System.out.println("ConnectionHelper.getRepoInfo() Requesting:" + url);
 		final String repoInfo = client.target(url).request().accept(MediaType.APPLICATION_JSON).get(String.class);
 		return repoReader.<RepoInfo> readValue(repoInfo);
 	}
 
 	public String getClientID(final String wid, Client client) {
-		final WebTarget resource = client.target(getURL(wid, true));
+		final WebTarget resource = client.target(getURL(wid, true, secure));
 		return resource.path("clientID").request().get(String.class);
 	}
 
@@ -340,7 +347,7 @@ public class ConnectionHelper {
 	public void uploadFile(File file, String workspaceID, String name) throws IOException {
 		try (final FormDataMultiPart formDataMultiPart = createFormBody(file, name)) {
 			final Client client = createClient(false);
-			final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
+			final Response response = client.target(getURL(workspaceID, false, secure)).request(MediaType.TEXT_PLAIN_TYPE)
 					.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
 			final int status = response.getStatus();
 			if (status != 201) {
@@ -351,7 +358,7 @@ public class ConnectionHelper {
 
 	public void deleteFile(String workspaceID, String relPath) {
 		final Client client = createClient(false);
-		final Response response = client.target(getURL(workspaceID, false)).path("delete").path(relPath).request(MediaType.TEXT_PLAIN_TYPE).delete();
+		final Response response = client.target(getURL(workspaceID, false, secure)).path("delete").path(relPath).request(MediaType.TEXT_PLAIN_TYPE).delete();
 		final int status = response.getStatus();
 		if (status != 200) {
 			listener.doLog(Severity.ERROR, "Failed to delete file:" + relPath + " status was:" + status);
@@ -369,7 +376,7 @@ public class ConnectionHelper {
 			formDataMultiPart.field("compileInfo", writer.writeValueAsString(ci));
 			formDataMultiPart.field("compileInfoSrc", compileInfoSrc);
 			final Client client = createClient(false);
-			final Response response = client.target(getURL(workspaceID, false)).request(MediaType.TEXT_PLAIN_TYPE)
+			final Response response = client.target(getURL(workspaceID, false, secure)).request(MediaType.TEXT_PLAIN_TYPE)
 					.post(Entity.entity(formDataMultiPart, formDataMultiPart.getMediaType()));
 			final int status = response.getStatus();
 			if (status != 201) {
