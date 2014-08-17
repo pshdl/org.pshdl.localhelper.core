@@ -91,7 +91,7 @@ public class ActelSynthesis implements ISynthesisTool {
 	}
 
 	private static void generateSynPrjFile(File synDir, String topModule, Iterable<File> vhdlFiles) throws IOException {
-		final Map<String, String> options = Maps.newHashMap();
+		final Map<String, String> options = Maps.newLinkedHashMap();
 		options.put("{TOPNAME}", topModule);
 		final StringBuilder sb = new StringBuilder();
 		for (final File vhdlFile : vhdlFiles) {
@@ -103,7 +103,7 @@ public class ActelSynthesis implements ISynthesisTool {
 	}
 
 	private static void generateActelSynFile(File synDir, String topModule, String boardName) throws IOException {
-		final Map<String, String> options = Maps.newHashMap();
+		final Map<String, String> options = Maps.newLinkedHashMap();
 		options.put("{TOPNAME}", topModule);
 		options.put("{BOARD_NAME}", boardName);
 		Files.write(Helper.processFile(ActelSynthesis.class, "ActelSynthScript.tcl", options), new File(synDir, "ActelSynthScript.tcl"));
@@ -128,7 +128,7 @@ public class ActelSynthesis implements ISynthesisTool {
 	}
 
 	private static void generateBatFile(File synDir, String synversion, String liberopath) throws IOException {
-		final Map<String, String> options = Maps.newHashMap();
+		final Map<String, String> options = Maps.newLinkedHashMap();
 		options.put("{SYNPLIFY_PATH}", ActelSynthesis.SYNPLIFY.getAbsolutePath());
 		options.put("{ACTEL_PATH}", ActelSynthesis.ACTEL_TCLSH.getAbsolutePath());
 		Files.write(Helper.processFile(ActelSynthesis.class, "synth.bat", options), new File(synDir, "synth.bat"));

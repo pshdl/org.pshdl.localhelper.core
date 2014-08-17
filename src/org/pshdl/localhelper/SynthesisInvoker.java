@@ -404,7 +404,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	private final ConnectionHelper connectionHelper;
-	private static final Map<String, ISynthesisTool> toolMap = Maps.newHashMap();
+	private static final Map<String, ISynthesisTool> toolMap = Maps.newLinkedHashMap();
 	static {
 		final Collection<ISynthesisTool> tools = HDLCore.getAllImplementations(ISynthesisTool.class);
 		for (final ISynthesisTool tool : tools) {

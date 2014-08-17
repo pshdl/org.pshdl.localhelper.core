@@ -63,7 +63,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.io.Files;
 
 public class SynthesisOutputProvider implements IOutputProvider, IProgressReporter {
-	private static final Map<String, ISynthesisTool> toolMap = Maps.newHashMap();
+	private static final Map<String, ISynthesisTool> toolMap = Maps.newLinkedHashMap();
 	private static final MultiOption subs[];
 	static {
 		final ArrayList<MultiOption> options = Lists.newArrayList();

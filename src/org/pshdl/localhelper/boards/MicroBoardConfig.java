@@ -59,7 +59,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createPMod2() {
-		final Map<String, String> defAttribute = Maps.newHashMap();
+		final Map<String, String> defAttribute = Maps.newLinkedHashMap();
 		defAttribute.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		final PinSpec p1 = new PinSpec("PMOD2_P1", "H12", "Pin 1 of PMOD interface", defAttribute, null, null, HDLDirection.INOUT);
 		final PinSpec p2 = new PinSpec("PMOD2_P2", "G13", "Pin 2 of PMOD interface", defAttribute, null, null, HDLDirection.INOUT);
@@ -73,7 +73,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createPMod1() {
-		final Map<String, String> defAttribute = Maps.newHashMap();
+		final Map<String, String> defAttribute = Maps.newLinkedHashMap();
 		defAttribute.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		final PinSpec p1 = new PinSpec("PMOD1_P1", "F15", "Pin 1 of PMOD interface", defAttribute, null, null, HDLDirection.INOUT);
 		final PinSpec p2 = new PinSpec("PMOD1_P2", "F16", "Pin 2 of PMOD interface", defAttribute, null, null, HDLDirection.INOUT);
@@ -87,7 +87,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createI2C() {
-		final Map<String, String> defAttribute = Maps.newHashMap();
+		final Map<String, String> defAttribute = Maps.newLinkedHashMap();
 		defAttribute.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		defAttribute.put(PinSpec.PULL, PinSpec.PULL_UP);
 		final PinSpec scl = new PinSpec("scl", "P12", "SCL for I2C", defAttribute, null, Polarity.active_low, HDLDirection.INOUT);
@@ -96,7 +96,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createUART() {
-		final Map<String, String> defAttribute = Maps.newHashMap();
+		final Map<String, String> defAttribute = Maps.newLinkedHashMap();
 		defAttribute.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		final PinSpec rxd = new PinSpec("usb_rs232_rxd", "R7", "RXD, the receiver input on the FPGA, the serial output of the chip", defAttribute, null, null, HDLDirection.IN);
 		final PinSpec txd = new PinSpec("usb_rs232_txd", "T7", "TXD, the sender output on the FPGA, the serial input of the chip", defAttribute, null, null, HDLDirection.OUT);
@@ -104,7 +104,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createGPIODip() {
-		final Map<String, String> defAttribute = Maps.newHashMap();
+		final Map<String, String> defAttribute = Maps.newLinkedHashMap();
 		defAttribute.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		defAttribute.put(PinSpec.PULL, PinSpec.PULL_DOWN);
 		final PinSpec dip0 = new PinSpec("gpio_dip[0]", "B3", "GPIO Dip switch 0", defAttribute, null, Polarity.active_high, HDLDirection.IN);
@@ -115,7 +115,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createGPIOLED() {
-		final Map<String, String> defAttribute = Maps.newHashMap();
+		final Map<String, String> defAttribute = Maps.newLinkedHashMap();
 		defAttribute.put(PinSpec.IOSTANDARD, "LVCMOS18");
 		final PinSpec led0 = new PinSpec("gpio_led[0]", "P4", "GPIO LED 0", defAttribute, null, Polarity.active_low, HDLDirection.OUT);
 		final PinSpec led1 = new PinSpec("gpio_led[1]", "L6", "GPIO LED 1", defAttribute, null, Polarity.active_low, HDLDirection.OUT);
@@ -125,7 +125,7 @@ public class MicroBoardConfig {
 	}
 
 	private static PinSpecGroup createResetClckGroup() {
-		final Map<String, String> defAttributes = Maps.newHashMap();
+		final Map<String, String> defAttributes = Maps.newLinkedHashMap();
 		defAttributes.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		final PinSpec clk = new PinSpec("user_clock", "V10", "40 MHz, USER_CLOCK can be used as external configuration clock", defAttributes, new TimeSpec("40000", "KHz"), null,
 				HDLDirection.IN);
@@ -134,7 +134,7 @@ public class MicroBoardConfig {
 		final PinSpec clk_3 = new PinSpec("clock_y3", "C10", "100 MHz", defAttributes, new TimeSpec("100000", "KHz"), null, HDLDirection.IN);
 		final PinSpec backup_clock = new PinSpec("backup_clock", "R8",
 				"The following oscillator is not populated in production but the footprint is compatible with the Maxim DS1088LU", defAttributes, null, null, HDLDirection.IN);
-		final Map<String, String> rstAttribute = Maps.newHashMap();
+		final Map<String, String> rstAttribute = Maps.newLinkedHashMap();
 		rstAttribute.put(PinSpec.IOSTANDARD, "LVCMOS33");
 		rstAttribute.put("CLOCK_DEDICATED_ROUTE", "false");
 		rstAttribute.put(PinSpec.PULL, PinSpec.PULL_DOWN);

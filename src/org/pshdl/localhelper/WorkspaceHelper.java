@@ -299,11 +299,11 @@ public class WorkspaceHelper {
 	private static final ObjectWriter writer = JSONHelper.getWriter();
 	private final IWorkspaceListener listener;
 	private final ConnectionHelper ch;
-	private final Map<String, MessageHandler<?>> handlerMap = Maps.newHashMap();
+	private final Map<String, MessageHandler<?>> handlerMap = Maps.newLinkedHashMap();
 
 	private static final ObjectMapper mapper = JSONHelper.getMapper();
 	private FileMonitor fileMonitor;
-	protected Map<String, FileInfo> knownFiles = Maps.newHashMap();
+	protected Map<String, FileInfo> knownFiles = Maps.newLinkedHashMap();
 	private final Configuration config;
 	private ServiceAdvertiser psa;
 	private RepoInfo repo;

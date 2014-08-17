@@ -28,6 +28,7 @@ package org.pshdl.localhelper.boards;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -199,7 +200,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createSPI() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 		final PinSpec ss = new PinSpec("ss", "43", "Chip select", attr, null, Polarity.active_low, HDLDirection.IN);
@@ -210,13 +211,13 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createButtons() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
 		final PinSpec clk = new PinSpec("Clock", "97", "This is the primary clock driven by PC4 of the Atmel", attr, new TimeSpec("32", "MHz"), null, HDLDirection.IN);
 		clk.assignedSignal = "$clk";
-		final HashMap<String, String> reset = new HashMap<>(attr);
+		final HashMap<String, String> reset = new LinkedHashMap<>(attr);
 		reset.put(PinSpec.INVERT, PinSpec.NO_VALUE);
 		final PinSpec rstButton = new PinSpec("Reset", "98", "This is the inverted button S1", reset, null, Polarity.active_low, HDLDirection.IN);
 		rstButton.assignedSignal = "$rst";
@@ -227,7 +228,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createVertical() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
@@ -239,7 +240,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createBlueLEDs() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
@@ -251,7 +252,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createArm1() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
@@ -273,7 +274,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createArm2() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
@@ -295,7 +296,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createArm3() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
@@ -317,7 +318,7 @@ public class PSHDLBoardConfig {
 	}
 
 	private static PinSpecGroup createArm4() {
-		final Map<String, String> attr = Maps.newHashMap();
+		final Map<String, String> attr = Maps.newLinkedHashMap();
 		attr.put("fixed", "yes");
 		attr.put("iostd", "LVTTL");
 
