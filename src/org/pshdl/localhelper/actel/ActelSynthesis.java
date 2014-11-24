@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -85,9 +86,10 @@ public class ActelSynthesis implements ISynthesisTool {
 		generatePDCFile(synDir, topModule, settings, board, null, null);
 		generateActelSynFile(synDir, topModule, topModule + "_constr");
 		generateSynPrjFile(synDir, topModule, vhdlFiles);
-		final FileOutputStream fos = new FileOutputStream(new File(synDir, "pshdl_pkg.vhd"));
-		ByteStreams.copy(ActelSynthesis.class.getResourceAsStream("/pshdl_pkg.vhd"), fos);
-		fos.close();
+		try (final FileOutputStream fos = new FileOutputStream(new File(synDir, "pshdl_pkg.vhd"));
+				InputStream pshdlPkgStream = ActelSynthesis.class.getResourceAsStream("/pshdl_pkg.vhd");) {
+			ByteStreams.copy(pshdlPkgStream, fos);
+		}
 	}
 
 	private static void generateSynPrjFile(File synDir, String topModule, Iterable<File> vhdlFiles) throws IOException {
