@@ -430,7 +430,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	 * Returns the name of the wrapped top module
 	 *
 	 * @param topModule
-	 * @return
+	 * @return the name of the wrapped top module
 	 */
 	public static String getWrapperName(final String topModule) {
 		return ("Synthesis" + topModule + "Wrapper").replace('.', '_');

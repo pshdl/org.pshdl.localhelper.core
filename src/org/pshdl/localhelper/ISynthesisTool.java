@@ -82,7 +82,7 @@ public interface ISynthesisTool {
 	/**
 	 * Return the name of the vendors that are supported by this tool
 	 *
-	 * @return
+	 * @return the name of the vendors that are supported by this tool
 	 *
 	 * @since v0.1.83
 	 */
@@ -91,7 +91,7 @@ public interface ISynthesisTool {
 	/**
 	 * Returns the supported command-line options of this tool
 	 *
-	 * @return
+	 * @return the supported command-line options of this tool
 	 *
 	 * @since v0.1.83
 	 */
@@ -100,7 +100,7 @@ public interface ISynthesisTool {
 	/**
 	 * Checks whether the tools can be found
 	 *
-	 * @return
+	 * @return <code>true</code> when the tool can be used
 	 *
 	 * @since v0.1.84
 	 */
