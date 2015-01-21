@@ -205,8 +205,9 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	/**
-	 * Run a process and report progress. Lines that start with #!> are directly
-	 * reported to the reporter and progress is incremented by incProgress
+	 * Run a process and report progress. Lines that start with #!&gt; are
+	 * directly reported to the reporter and progress is incremented by
+	 * incProgress
 	 *
 	 * @param workingDir
 	 *            the working directory in which the process will be running
