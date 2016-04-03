@@ -272,8 +272,8 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		System.out.println("SynthesisInvoker.SynJob.sendMessage()" + type + " " + message);
 	}
 
-	public static void reportFile(IProgressReporter reporter, final CompileInfo info, final ObjectWriter writer, final File srrLog, final String implRelPath) throws IOException,
-			JsonProcessingException {
+	public static void reportFile(IProgressReporter reporter, final CompileInfo info, final ObjectWriter writer, final File srrLog, final String implRelPath)
+			throws IOException, JsonProcessingException {
 		final FileRecord fileRecord = reporter.reportFile(info, srrLog, implRelPath);
 		reporter.reportProgress(ProgressType.report, null, writer.writeValueAsString(fileRecord));
 	}
@@ -354,7 +354,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 					stmnts.add(new HDLAssignment().setLeft(var).setRight(invertVarRefIfSpecified(hir, ps)));
 					break;
 				case INOUT:
-					stmnts.add(new HDLExport().setExportRef(hir));
+					stmnts.add(new HDLExport().setHIf(hir.getHIfRefName()).setVar(hir.getVarRefName()));
 					break;
 				default:
 				}
@@ -406,6 +406,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 
 	private final ConnectionHelper connectionHelper;
 	private static final Map<String, ISynthesisTool> toolMap = Maps.newLinkedHashMap();
+
 	static {
 		final Collection<ISynthesisTool> tools = HDLCore.getAllImplementations(ISynthesisTool.class);
 		for (final ISynthesisTool tool : tools) {
