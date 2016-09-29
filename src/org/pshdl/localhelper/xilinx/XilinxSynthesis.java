@@ -86,9 +86,9 @@ public class XilinxSynthesis implements ISynthesisTool {
 			}
 		}
 		final ProcessBuilder synProcessBuilder = new ProcessBuilder(//
-				XILINX_XFLOW.getAbsolutePath(),//
-				"-p", board.fpga.partNumber,//
-				"-synth", "xst_mixed.opt",//
+				XILINX_XFLOW.getAbsolutePath(), //
+				"-p", board.fpga.partNumber, //
+				"-synth", "xst_mixed.opt", //
 				prjFileName);
 		final Process synProcess = SynthesisInvoker.runProcess(synDir, synProcessBuilder, timeOut, "synthesis", 0.2, 0.15, reporter);
 		final CompileInfo info = new CompileInfo();
@@ -99,9 +99,9 @@ public class XilinxSynthesis implements ISynthesisTool {
 			reporter.reportProgress(ProgressType.error, null, "Synthesis did not exit normally, exit code was:" + synProcess.exitValue());
 		} else {
 			final ProcessBuilder implProcessBuilder = new ProcessBuilder(//
-					XILINX_XFLOW.getAbsolutePath(),//
-					"-p", board.fpga.partNumber,//
-					"-implement", "balanced.opt",//
+					XILINX_XFLOW.getAbsolutePath(), //
+					"-p", board.fpga.partNumber, //
+					"-implement", "balanced.opt", //
 					wrappedModule);
 			final Process implProcess = SynthesisInvoker.runProcess(synDir, implProcessBuilder, 2 * timeOut, "implementation", 0.4, 0.15, reporter);
 			sendXFlowLog(synDir, reporter, info, "implementation.log");
@@ -109,9 +109,9 @@ public class XilinxSynthesis implements ISynthesisTool {
 				reporter.reportProgress(ProgressType.error, null, "Implementation did not exit normally, exit code was:" + implProcess.exitValue());
 			} else {
 				final ProcessBuilder bitgenProcessBuilder = new ProcessBuilder(//
-						XILINX_XFLOW.getAbsolutePath(),//
-						"-p", board.fpga.partNumber,//
-						"-config", "bitgen.opt",//
+						XILINX_XFLOW.getAbsolutePath(), //
+						"-p", board.fpga.partNumber, //
+						"-config", "bitgen.opt", //
 						wrappedModule);
 				final Process bitGenProcess = SynthesisInvoker.runProcess(synDir, bitgenProcessBuilder, timeOut, "bitgen", 0.8, 0.15, reporter);
 				sendXFlowLog(synDir, reporter, info, "bitgen.log");
@@ -154,10 +154,8 @@ public class XilinxSynthesis implements ISynthesisTool {
 	public boolean isSynthesisAvailable() {
 		System.out.println("Assuming Xilinx xflow tool to be at:" + XILINX_XFLOW);
 		if (!XILINX_XFLOW.exists()) {
-			System.err
-					.println("File "
-							+ XILINX_XFLOW
-							+ " does not exist. You can specify it's location with the property XILINX_XFLOW or if Xilinx is installed in the default c:\\xilinx directory with XILINX_VERSION");
+			System.err.println("File " + XILINX_XFLOW
+					+ " does not exist. You can specify it's location with the property XILINX_XFLOW or if Xilinx is installed in the default c:\\xilinx directory with XILINX_VERSION");
 			return false;
 		}
 		return true;

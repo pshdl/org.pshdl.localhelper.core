@@ -51,8 +51,7 @@ public class MicroBoardConfig {
 		final PinSpecGroup i2c = createI2C();
 		final PinSpecGroup pmod1 = createPMod1();
 		final PinSpecGroup pmod2 = createPMod2();
-		final BoardSpecSettings microBoard = new BoardSpecSettings(
-				"Avnet Spartan-6 LX9 MicroBoard",
+		final BoardSpecSettings microBoard = new BoardSpecSettings("Avnet Spartan-6 LX9 MicroBoard",
 				"The low-cost Spartan-6 FPGA LX9 MicroBoard is the perfect solution for designers interested in exploring the MicroBlaze soft processor or Spartan-6 FPGAs in general. The kit comes with several pre-built MicroBlaze “systems” allowing users to start software development just like any standard off-the-shelf microprocessor. The included Software Development Kit (SDK) provides a familiar Eclipse-based environment for writing and debugging code. Experienced FPGA users will find the MicroBoard a valuable tool for general purpose prototyping and testing. The included peripherals and expansion interfaces make the kit ideal for a wide variety of applications. From a system running an RTOS to a Linux-based web server, the Spartan-6 LX9 MicroBoard can help you validate your next design idea.",
 				fpga, null, clkRst, dips, leds, uart, i2c, pmod1, pmod2);
 		return microBoard;

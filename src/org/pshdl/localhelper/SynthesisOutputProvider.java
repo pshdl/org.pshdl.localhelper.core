@@ -85,8 +85,8 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 
 	public Options getOptions() {
 		final Options options = new Options();
-		options.addOption("t", "tool", true, "Override the tool to use, available options are:" + toolMap.keySet()
-				+ " by default the vendor specified in the synthesis settings is used");
+		options.addOption("t", "tool", true,
+				"Override the tool to use, available options are:" + toolMap.keySet() + " by default the vendor specified in the synthesis settings is used");
 		options.addOption("s", "synFile", true, "Specify the synthesis settings file to use");
 		options.addOption("synDir", true, "Specify the directory to which all synthesis related files are written, default is 'synthesis' below the VHDL output directory");
 		return options;

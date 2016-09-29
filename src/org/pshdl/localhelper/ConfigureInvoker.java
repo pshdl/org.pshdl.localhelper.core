@@ -82,8 +82,8 @@ public class ConfigureInvoker implements MessageHandler<FileRecord> {
 		}
 	}
 
-	public Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress) throws IOException,
-			InterruptedException {
+	public Process runProcess(final File synDir, final ProcessBuilder processBuilder, int timeOutMinutes, String stage, final double progress)
+			throws IOException, InterruptedException {
 		processBuilder.redirectErrorStream(true);
 		processBuilder.directory(synDir);
 		final Process process = processBuilder.start();
