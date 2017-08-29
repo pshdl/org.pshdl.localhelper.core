@@ -64,6 +64,7 @@ import org.pshdl.model.HDLVariable;
 import org.pshdl.model.HDLVariableDeclaration;
 import org.pshdl.model.HDLVariableDeclaration.HDLDirection;
 import org.pshdl.model.HDLVariableRef;
+import org.pshdl.model.evaluation.HDLEvaluationContext;
 import org.pshdl.model.extensions.FullNameExtension;
 import org.pshdl.model.parser.PSHDLParser;
 import org.pshdl.model.utils.HDLCore;
@@ -124,8 +125,9 @@ public class SynthesisInvoker implements MessageHandler<String> {
 			try {
 				final File synDir = new File(workspaceDir, SRC_GEN_SYNTHESIS);
 				if (!synDir.exists()) {
-					if (!synDir.mkdirs())
+					if (!synDir.mkdirs()) {
 						throw new IllegalArgumentException("Failed to create directory:" + synDir);
+					}
 				}
 				final File boardFile = new File(workspaceDir, settings.board);
 				final ObjectReader reader = JSONHelper.getReader(BoardSpecSettings.class);
@@ -167,22 +169,18 @@ public class SynthesisInvoker implements MessageHandler<String> {
 
 	public static interface IProgressReporter {
 		/**
-		 *
 		 * @param type
 		 *            the {@link ProgressType} of this progress
 		 * @param progress
-		 *            either <code>null</code> in case of errors, or a number
-		 *            between (0..1)
+		 *            either <code>null</code> in case of errors, or a number between (0..1)
 		 * @param message
-		 *            a human readable string that give the user an idea of what
-		 *            is going on, or a JSON object
+		 *            a human readable string that give the user an idea of what is going on, or a JSON object
 		 * @throws IOException
 		 */
 		void reportProgress(ProgressType type, Double progress, String message) throws IOException;
 
 		/**
-		 * This method can be used to create a file record that is used to
-		 * communicate with the server
+		 * This method can be used to create a file record that is used to communicate with the server
 		 *
 		 * @param info
 		 *            the info about the synthesis
@@ -205,8 +203,7 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	/**
-	 * Run a process and report progress. Lines that start with #!&gt; are
-	 * directly reported to the reporter and progress is incremented by
+	 * Run a process and report progress. Lines that start with #!&gt; are directly reported to the reporter and progress is incremented by
 	 * incProgress
 	 *
 	 * @param workingDir
@@ -216,17 +213,13 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	 * @param timeOutMinutes
 	 *            the timeout after which the process will be killed
 	 * @param stage
-	 *            a human readable short description of what is done in this
-	 *            process ('synthesis', 'implementation'...)
+	 *            a human readable short description of what is done in this process ('synthesis', 'implementation'...)
 	 * @param progress
-	 *            the base progress to which the incprogress will be added upon
-	 *            each output line
+	 *            the base progress to which the incprogress will be added upon each output line
 	 * @param incProgress
-	 *            the amount by which the progress is incremented on each output
-	 *            line
+	 *            the amount by which the progress is incremented on each output line
 	 * @param reporter
-	 *            the reporter to which progress, as well as console output is
-	 *            reported
+	 *            the reporter to which progress, as well as console output is reported
 	 * @return the process that was either terminated or is terminated
 	 * @throws IOException
 	 * @throws InterruptedException
@@ -238,23 +231,20 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		final Process process = processBuilder.start();
 		final InputStream is = process.getInputStream();
 		final StringBuilder sb = new StringBuilder();
-		new Thread(new Runnable() {
-			@Override
-			public void run() {
-				try (final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-					String line = null;
-					double progressCounter = progress;
-					final String absolutePath = workingDir.getAbsolutePath();
-					while ((line = reader.readLine()) != null) {
-						line = line.replace(absolutePath, "");
-						sb.append(line).append('\n');
-						if (line.startsWith("#!>")) {
-							reporter.reportProgress(ProgressType.progress, progressCounter, line.substring(3));
-							progressCounter += incProgress;
-						}
+		new Thread((Runnable) () -> {
+			try (final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+				String line = null;
+				double progressCounter = progress;
+				final String absolutePath = workingDir.getAbsolutePath();
+				while ((line = reader.readLine()) != null) {
+					line = line.replace(absolutePath, "");
+					sb.append(line).append('\n');
+					if (line.startsWith("#!>")) {
+						reporter.reportProgress(ProgressType.progress, progressCounter, line.substring(3));
+						progressCounter += incProgress;
 					}
-				} catch (final IOException e) {
 				}
+			} catch (final IOException e) {
 			}
 		}, "OutputLogger").start();
 		if (!waitOrTerminate(process, timeOutMinutes)) {
@@ -295,10 +285,10 @@ public class SynthesisInvoker implements MessageHandler<String> {
 		return done;
 	}
 
-	public static HDLUnit createSynthesisContainer(final SynthesisSettings setting, final HDLUnit unit) {
+	public static HDLUnit createSynthesisContainer(final SynthesisSettings setting, final HDLUnit unit, HDLEvaluationContext context) {
 		final HDLVariable hifVar = new HDLVariable().setName("wrapper");
 		final HDLQualifiedName wrapperRef = hifVar.asRef();
-		final HDLInterface unitIF = unit.asInterface();
+		final HDLInterface unitIF = unit.asInterface(context);
 		final HDLQualifiedName fqn = FullNameExtension.fullNameOf(unit);
 		HDLInterfaceInstantiation hii = new HDLInterfaceInstantiation().setHIf(fqn).setVar(hifVar);
 		final Map<String, String> overrideParameters = setting.overrideParameters;
@@ -367,8 +357,9 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	}
 
 	private static HDLExpression invertVarRefIfSpecified(HDLVariableRef var, PinSpec ps) {
-		if ((ps.attributes != null) && ps.attributes.containsKey(PinSpec.INVERT))
+		if ((ps.attributes != null) && ps.attributes.containsKey(PinSpec.INVERT)) {
 			return new HDLManip().setType(HDLManipType.BIT_NEG).setTarget(var);
+		}
 		return var;
 	}
 
@@ -399,8 +390,9 @@ public class SynthesisInvoker implements MessageHandler<String> {
 	public static HDLExpression extractExpression(final String paramName, final String value) {
 		final HashSet<Problem> problems = Sets.newHashSet();
 		final HDLExpression hdlExpression = PSHDLParser.parseExpressionString(value, problems);
-		if (!problems.isEmpty())
+		if (!problems.isEmpty()) {
 			throw new IllegalArgumentException("The value '" + value + "' of key '" + paramName + "' is not valid:" + problems.toString());
+		}
 		return hdlExpression;
 	}
 

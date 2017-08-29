@@ -43,6 +43,7 @@ import org.pshdl.generator.vhdl.PStoVHDLCompiler;
 import org.pshdl.localhelper.SynthesisInvoker.IProgressReporter;
 import org.pshdl.model.HDLPackage;
 import org.pshdl.model.HDLUnit;
+import org.pshdl.model.evaluation.HDLEvaluationContext;
 import org.pshdl.model.extensions.FullNameExtension;
 import org.pshdl.model.utils.HDLCore;
 import org.pshdl.model.utils.HDLQualifiedName;
@@ -105,15 +106,18 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 	@Override
 	public String invoke(CommandLine cli) throws Exception {
 		final String synFileOpt = cli.getOptionValue('s');
-		if (synFileOpt == null)
+		if (synFileOpt == null) {
 			return "You need to specify a synthesis settings file";
+		}
 		final File synFile = new File(synFileOpt);
-		if (!synFile.exists())
+		if (!synFile.exists()) {
 			return "The file:" + synFile.getAbsolutePath() + " does not exist";
+		}
 		final SynthesisSettings settings = JSONHelper.getReader(SynthesisSettings.class).readValue(synFile);
 		final File boardFile = new File(synFile.getParentFile(), settings.board);
-		if (!boardFile.exists())
+		if (!boardFile.exists()) {
 			return "The file:" + boardFile.getAbsolutePath() + " does not exist";
+		}
 		final BoardSpecSettings board = JSONHelper.getReader(BoardSpecSettings.class).readValue(boardFile);
 		String vendor = board.fpga.vendor.toLowerCase();
 		if (cli.hasOption('t')) {
@@ -130,18 +134,21 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 	public static String runSynthesis(CommandLine cli, final SynthesisSettings settings, final BoardSpecSettings board, String vendor, final File vhdlOutputDir, File outputDir,
 			IProgressReporter reporter) throws IOException, FileNotFoundException, Exception {
 		final ISynthesisTool tool = toolMap.get(vendor);
-		if (tool == null)
+		if (tool == null) {
 			return "The tool:" + vendor + " is not known. Known tools are:" + toolMap.keySet();
+		}
 		if (!outputDir.exists()) {
-			if (!outputDir.mkdirs())
+			if (!outputDir.mkdirs()) {
 				return "Failed to create output directory:" + outputDir.getAbsolutePath();
+			}
 		}
 		final String topModule = settings.topModule;
 		System.out.println("Synthesis top module:" + topModule + " for board:" + board.boardName);
 		try (final PStoVHDLCompiler vhdlCompiler = new PStoVHDLCompiler()) {
 			final String invoke = vhdlCompiler.invoke(cli);
-			if (invoke != null)
+			if (invoke != null) {
 				return invoke;
+			}
 			final Collection<HDLUnit> units = vhdlCompiler.getUnits();
 			HDLUnit unit = null;
 			for (final HDLUnit hdlUnit : units) {
@@ -151,11 +158,14 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 					break;
 				}
 			}
-			if (unit == null)
+			if (unit == null) {
 				return "Did not find the module named:" + topModule;
-			final HDLUnit wrapper = SynthesisInvoker.createSynthesisContainer(settings, unit).setLibURI(vhdlCompiler.uri);
+			}
+			final HDLEvaluationContext context = HDLEvaluationContext.createDefault(unit);
+			final HDLUnit wrapper = SynthesisInvoker.createSynthesisContainer(settings, unit, context).setLibURI(vhdlCompiler.uri);
 			final String wrappedModule = SynthesisInvoker.getWrapperName(topModule);
-			final CompileResult doCompile = vhdlCompiler.doCompile(wrappedModule + ".pshdl", new HDLPackage().addUnits(wrapper).setLibURI(vhdlCompiler.uri).copyDeepFrozen(null), context);
+			final CompileResult doCompile = vhdlCompiler.doCompile(wrappedModule + ".pshdl", new HDLPackage().addUnits(wrapper).setLibURI(vhdlCompiler.uri).copyDeepFrozen(null),
+					context);
 			PSAbstractCompiler.writeFiles(outputDir, doCompile);
 			final List<File> vhdlFiles = Lists.newArrayList();
 			for (final String srcName : vhdlCompiler.getSources()) {
