@@ -155,7 +155,7 @@ public class SynthesisOutputProvider implements IOutputProvider, IProgressReport
 				return "Did not find the module named:" + topModule;
 			final HDLUnit wrapper = SynthesisInvoker.createSynthesisContainer(settings, unit).setLibURI(vhdlCompiler.uri);
 			final String wrappedModule = SynthesisInvoker.getWrapperName(topModule);
-			final CompileResult doCompile = vhdlCompiler.doCompile(wrappedModule + ".pshdl", new HDLPackage().addUnits(wrapper).setLibURI(vhdlCompiler.uri).copyDeepFrozen(null));
+			final CompileResult doCompile = vhdlCompiler.doCompile(wrappedModule + ".pshdl", new HDLPackage().addUnits(wrapper).setLibURI(vhdlCompiler.uri).copyDeepFrozen(null), context);
 			PSAbstractCompiler.writeFiles(outputDir, doCompile);
 			final List<File> vhdlFiles = Lists.newArrayList();
 			for (final String srcName : vhdlCompiler.getSources()) {
